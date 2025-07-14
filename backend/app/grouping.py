@@ -14,6 +14,8 @@ from sklearn.neighbors import NearestNeighbors
 # n_samples = 500
 # n_features = 5
 # data = np.random.randn(n_samples, n_features)
+
+# 1. testdata.py로 생성한 테스트 데이터 사용
 base_path = os.path.dirname(__file__)  # 현재 py 파일 경로
 file_path = os.path.join(base_path, "skewed_fitness_data.npy")
 data = np.load(file_path)

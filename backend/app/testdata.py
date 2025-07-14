@@ -1,7 +1,9 @@
-# 고정 시드
+## 테스트 데이터 생성 로직
+
 import numpy as np
 import pandas as pd
 
+# 고정 시드 / 난수 생성 초기값을 42로 고정해서 난수 결과가 항상 같도록 설정
 np.random.seed(42)
 
 n_samples = 100
