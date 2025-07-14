@@ -1,5 +1,6 @@
 # pip install numpy pandas PCA DBSCAN
 
+import os
 import numpy as np
 import pandas as pd
 from sklearn.decomposition import PCA
@@ -9,10 +10,13 @@ import matplotlib.pyplot as plt
 from sklearn.neighbors import NearestNeighbors
 
 # 1. 가상의 고차원 데이터 생성 (나중에는 사용자 정보로 집어넣어야 함)
-np.random.seed(3)
-n_samples = 500
-n_features = 5
-data = np.random.randn(n_samples, n_features)
+# np.random.seed(3)
+# n_samples = 500
+# n_features = 5
+# data = np.random.randn(n_samples, n_features)
+base_path = os.path.dirname(__file__)  # 현재 py 파일 경로
+file_path = os.path.join(base_path, "skewed_fitness_data.npy")
+data = np.load(file_path)
 
 # 2. 데이터 스케일링
 scaler = StandardScaler()
