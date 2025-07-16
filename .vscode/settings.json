@@ -1,5 +1,7 @@
 {
   "python.defaultInterpreterPath": "venv/bin/python",
   "python.analysis.extraPaths": ["./backend/app"],
-  "python.analysis.typeCheckingMode": "basic"
+  "python.analysis.typeCheckingMode": "basic",
+  "git.autofetch": true,
+  "git.autofetchPeriod": 180
 }
