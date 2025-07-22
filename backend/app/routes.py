@@ -1,6 +1,6 @@
 
 from flask import Blueprint, jsonify, request
-import groupingLogic
+from . import groupingLogic
 
 main = Blueprint('main', __name__)
 
@@ -23,6 +23,12 @@ def grouping():
     minFactor = data.get('minFactor')
     userData = data.get('userData')
 
-    resultData = groupingLogic.constrained_kmeans(userData, groupCount, maxFactor, minFactor)
-    return jsonify(resultData)
+    labels, centroids = groupingLogic.constrained_kmeans_with_names(userData, groupCount, maxFactor, minFactor)
+
+    result = {
+        "labels": labels
+        # , "centroids": centroids.tolist()
+    }
+
+    return jsonify(result)
 

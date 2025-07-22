@@ -10,10 +10,115 @@ from sklearn.cluster import DBSCAN, KMeans
 from sklearn.preprocessing import StandardScaler
 
 
+def constrained_kmeans_with_names(
+    raw_data,
+    n_clusters=0,
+    max_elements_per_cluster=0,
+    min_elements_per_cluster=0,
+    max_iter=100,
+    tol=1e-4
+):
+    # 1. 데이터에서 이름 분리
+    names = [item["name"] for item in raw_data]
+
+    # 2. 숫자값만 추출 (name 제외)
+    numeric_data = [
+        [v for k, v in item.items() if k != "name"]
+        for item in raw_data
+    ]
+
+    data = np.array(numeric_data)
+    n_samples, dim = data.shape
+
+    # 3. 데이터 스케일링
+    scaler = StandardScaler()
+    data_scaled = scaler.fit_transform(data)
+
+    # 4. PCA를 사용하여 2차원으로 차원 축소
+    pca = PCA(n_components=2)
+    data_2d = pca.fit_transform(data_scaled)
+
+    # 5. 노이즈 제거용 DBSCAN (필수는 아님)
+    db = DBSCAN(eps=0.5, min_samples=10).fit(data_2d)
+    labels_db = db.labels_
+
+    # 6. 지정 그룹 수 없을 시, 최대최소값으로 추정
+    if n_clusters == 0:
+        n_clusters = estimate_n_clusters(n_samples, max_elements_per_cluster, min_elements_per_cluster)
+
+    # 7. 클러스터링 진행
+    # 7.1. 초기 중심 무작위 선택
+    rng = np.random.default_rng()
+    centroids = data[rng.choice(n_samples, n_clusters, replace=False)]
+
+    labels = -np.ones(n_samples, dtype=int)
+    counts = np.zeros(n_clusters, dtype=int)
+
+    for iteration in range(max_iter):
+        old_centroids = centroids.copy()
+        labels[:] = -1
+        counts[:] = 0
+
+        for i in range(n_samples):
+            distances = np.linalg.norm(data[i] - centroids, axis=1)
+            possible_clusters = [k for k in range(n_clusters) if counts[k] < max_elements_per_cluster]
+
+            if not possible_clusters:
+                labels[i] = np.argmin(distances)
+                counts[labels[i]] += 1
+            else:
+                filtered_distances = distances[possible_clusters]
+                chosen = possible_clusters[np.argmin(filtered_distances)]
+                labels[i] = chosen
+                counts[chosen] += 1
+
+        for k in range(n_clusters):
+            members = data[labels == k]
+            if len(members) > 0:
+                centroids[k] = members.mean(axis=0)
+
+        centroid_shift = np.linalg.norm(centroids - old_centroids, axis=1).max()
+        if centroid_shift < tol:
+            break
+
+    # 최소 인원 미만 클러스터 병합
+    small_clusters = [k for k in range(n_clusters) if counts[k] < min_elements_per_cluster]
+    for k in small_clusters:
+        members = np.where(labels == k)[0]
+        for idx in members:
+            distances = np.linalg.norm(data[idx] - centroids, axis=1)
+            candidates = [c for c in range(n_clusters) if counts[c] >= min_elements_per_cluster and c != k]
+            if not candidates:
+                continue
+            filtered_distances = distances[candidates]
+            new_cluster = candidates[np.argmin(filtered_distances)]
+            labels[idx] = new_cluster
+            counts[new_cluster] += 1
+            counts[k] -= 1
+
+        if counts[k] == 0:
+            centroids[k] = np.zeros(dim)
+
+    # 최종 결과: 이름과 클러스터 번호 매핑
+    clustered_result = [{"name": names[i], "cluster": int(labels[i])} for i in range(n_samples)]
+
+    # clustered_result : 각 이름의 요소가 어떤 그룹에 속하는지 return
+        # ex) {"cluster": 7,"name": "회원1"},{"cluster": 14,"name": "회원2"},,,
+
+    # centroids : 각 그룹의 중심점. 6차원 데이터가 들어오면 그룹당 6개 데이터들의 중심값을 return
+        # ex) [29.0, 170.0, 69.5, 41.02, 6.55, 0.5], [62.66, 164.16, 91.66, 22.51, 0.46, 0.83],,,,
+    return clustered_result, centroids
+
+
+
+
+
+
 def constrained_kmeans(data, n_clusters=0, max_elements_per_cluster=0, min_elements_per_cluster=0, max_iter=100, tol=1e-4):
     # 1. 데이터 스케일링
     scaler = StandardScaler()
-    data_scaled = scaler.fit_transform(data)
+    data_ndarray = np.array(data)
+    data_scaled = scaler.fit_transform(data_ndarray)
 
     # 2. PCA를 사용하여 2차원으로 차원 축소
     pca = PCA(n_components=2)

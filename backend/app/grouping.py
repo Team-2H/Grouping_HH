@@ -1,49 +1,77 @@
-# pip install numpy pandas PCA DBSCAN
 
 import os
+import json
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
-
 import groupingLogic
 
-
-# 1. 가상의 고차원 데이터 생성 (나중에는 사용자 정보로 집어넣어야 함)
-# np.random.seed(3)
-# n_samples = 500
-# n_features = 5
-# data = np.random.randn(n_samples, n_features)
-
 # 1. testdata.py로 생성한 테스트 데이터 사용
-base_path = os.path.dirname(__file__)  # 현재 py 파일 경로
-file_path = os.path.join(base_path, "skewed_fitness_data.npy")
-data = np.load(file_path)
+# base_path = os.path.dirname(__file__)  # 현재 py 파일 경로
+# file_path = os.path.join(base_path, "skewed_fitness_data.npy")
+# data = np.load(file_path)
+
+# JSON 파일 경로
+current_dir = os.path.dirname(os.path.abspath(__file__))
+file_path = os.path.join(current_dir, 'group_pt_members.json')
+
+# 파일 읽고 list로 변환
+with open(file_path, 'r', encoding='utf-8') as f:
+    raw_data = json.load(f)
 
 groupCount = 20
-max_elements_per_cluster = 0
-min_elements_per_cluster = 0
-constrained_data = groupingLogic.constrained_kmeans(data, groupCount, max_elements_per_cluster, min_elements_per_cluster)
+max_elements_per_cluster = 6
+min_elements_per_cluster = 2
+clustered_result, centroids = groupingLogic.constrained_kmeans_with_names(raw_data, groupCount, max_elements_per_cluster, min_elements_per_cluster)
 
-constrained_labels = constrained_data[0]
-constrained_centroids = constrained_data[1]
+# 1. raw_data에서 numeric 값만 추출 (name 제외)
+numeric_data = [
+    [v for k, v in item.items() if k != "name"]
+    for item in raw_data
+]
+data = np.array(numeric_data)
 
-## 테스트용 코드
-# 2. 클러스터링 시각화 (제한된 클러스터)
-# 2-1. 2차원 데이터 필요
+# 2. 클러스터 라벨 추출
+labels = np.array([item["cluster"] for item in clustered_result])
+
+# 3. 데이터 스케일링 + PCA (2차원으로 축소)
 scaler = StandardScaler()
 data_scaled = scaler.fit_transform(data)
 pca = PCA(n_components=2)
 data_2d = pca.fit_transform(data_scaled)
 
+# 4. centroids 도 동일하게 변환
+centroids_scaled = scaler.transform(np.array(centroids))
+centroids_2d = pca.transform(centroids_scaled)
+
+# 5. 시각화
 plt.figure(figsize=(10, 7))
-unique_labels = set(constrained_labels)
-colors = plt.get_cmap("Spectral")(np.linspace(0, 1, len(unique_labels)))
+unique_labels = sorted(set(labels))
+colors = plt.get_cmap("tab10")(np.linspace(0, 1, len(unique_labels)))
 
 for k, col in zip(unique_labels, colors):
-    class_member_mask = (constrained_labels == k)
-    xy = data_2d[class_member_mask]
-    plt.plot(xy[:, 0], xy[:, 1], 'o', markerfacecolor=col, markeredgecolor='k', markersize=6)
+    mask = labels == k
+    plt.scatter(
+        data_2d[mask, 0], data_2d[mask, 1],
+        color=col, edgecolor='k', s=50, label=f'Cluster {k}'
+    )
 
-plt.title('GroupPT Clustering')
+# 중심점 그리기
+plt.scatter(
+    centroids_2d[:, 0], centroids_2d[:, 1],
+    marker='*', color='black', s=200, label='Centroids'
+)
+
+# 중심점에 라벨 번호 붙이기
+for i, (x, y) in enumerate(centroids_2d):
+    plt.text(x, y, str(i), fontsize=12, color='white', ha='center', va='center',
+             bbox=dict(facecolor='black', boxstyle='circle'))
+
+plt.title('GroupPT 클러스터링 결과')
+plt.xlabel('PCA 1')
+plt.ylabel('PCA 2')
+plt.legend()
+plt.grid(True)
+plt.tight_layout()
 plt.show()
