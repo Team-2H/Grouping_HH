@@ -2,11 +2,9 @@
 import math
 import numpy as np
 from sklearn.preprocessing import StandardScaler
-from sklearn.neighbors import NearestNeighbors
 import math
 from sklearn.decomposition import PCA
-import pandas as pd
-from sklearn.cluster import DBSCAN, KMeans
+from sklearn.cluster import DBSCAN
 from sklearn.preprocessing import StandardScaler
 
 
@@ -18,9 +16,10 @@ def constrained_kmeans_with_names(
     max_iter=100,
     tol=1e-4
 ):
+    
     names, labels, n_samples, centroids = clustering(
-        raw_data, n_clusters=0, max_elements_per_cluster=0,
-        min_elements_per_cluster=0, max_iter=100, tol=1e-4
+        raw_data, n_clusters, max_elements_per_cluster,
+        min_elements_per_cluster, max_iter, tol
     )
 
     # 최종 결과: 이름과 클러스터 번호 매핑

@@ -3,5 +3,8 @@
   "python.analysis.extraPaths": ["./backend/app"],
   "python.analysis.typeCheckingMode": "basic",
   "git.autofetch": true,
-  "git.autofetchPeriod": 180
+  "git.autofetchPeriod": 180,
+  "python-envs.defaultEnvManager": "ms-python.python:conda",
+  "python-envs.defaultPackageManager": "ms-python.python:conda",
+  "python-envs.pythonProjects": []
 }
