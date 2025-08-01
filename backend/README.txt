@@ -25,3 +25,10 @@ python run.py
 # Run and Debug(실행 및 디버그) 탭 클릭
 # 탭창 상단에 초록색 재생버튼 클릭
 # - 디버그 설정은 .vscode/launch.json 파일로 변경 가능
+
+
+
+## 🔧 백엔드 테스트 자동화
+
+# 설치
+pip install pytest requests

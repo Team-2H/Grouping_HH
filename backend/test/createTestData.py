@@ -4,9 +4,9 @@ import numpy as np
 import pandas as pd
 
 # 고정 시드 / 난수 생성 초기값을 42로 고정해서 난수 결과가 항상 같도록 설정
-np.random.seed(42)
+np.random.seed(316)
 
-n_samples = 500
+n_samples = 50
 n_groups = 4
 samples_per_group = n_samples // n_groups
 
@@ -58,4 +58,8 @@ df_skewed.index.name = "name"
 df_skewed.reset_index(inplace=True)
 
 # 전체 회원 정보를 CSV로 저장
-df_skewed.to_csv(f"group_test_{n_samples}_data.csv", index=False)
+# df_skewed.to_csv(f"group_test_{n_samples}_data.csv", index=False)
+
+# JSON 저장
+json_list_filename = f"group_test_{n_samples}_data.json"
+df_skewed.to_json(json_list_filename, orient="records", force_ascii=False, indent=2)

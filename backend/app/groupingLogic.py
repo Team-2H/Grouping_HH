@@ -6,6 +6,7 @@ import math
 from sklearn.decomposition import PCA
 from sklearn.cluster import DBSCAN
 from sklearn.preprocessing import StandardScaler
+import pandas as pd
 
 
 def constrained_kmeans_with_names(
@@ -13,13 +14,14 @@ def constrained_kmeans_with_names(
     n_clusters=0,
     max_elements_per_cluster=0,
     min_elements_per_cluster=0,
+    weightFactor=[],
     max_iter=100,
     tol=1e-4
 ):
     
     names, labels, n_samples, centroids = clustering(
         raw_data, n_clusters, max_elements_per_cluster,
-        min_elements_per_cluster, max_iter, tol
+        min_elements_per_cluster, weightFactor, max_iter, tol
     )
 
     # 최종 결과: 이름과 클러스터 번호 매핑
@@ -68,15 +70,17 @@ def clustering(
     n_clusters=0,
     max_elements_per_cluster=0,
     min_elements_per_cluster=0,
+    weightFactor=[],
     max_iter=100,
     tol=1e-4
 ):
     # 1. 데이터에서 이름 분리
     names = [item["name"] for item in raw_data]
 
-    # 2. 숫자값만 추출 (name 제외)
+    # 2. 데이터 추출 (name,weightFactor 제외)
+    reference_keys = set(raw_data[0].keys()) - {"name"}
     numeric_data = [
-        [v for k, v in item.items() if k != "name"]
+        [item[key] for key in reference_keys]
         for item in raw_data
     ]
 
@@ -87,8 +91,17 @@ def clustering(
     scaler = StandardScaler()
     data_scaled = scaler.fit_transform(data)
 
-    # 4. PCA를 사용하여 2차원으로 차원 축소
-    pca = PCA(n_components=2)
+    # 가중치 데이터가 리스트로 들어오는 경우
+    # 가중치 데이터 적용
+    if len(weightFactor) > 0:
+        weightFactor = np.array(weightFactor, dtype=np.float64)
+        data_scaled = data_scaled * weightFactor
+    
+    # 가중치 데이터가 key,value로 들어오는 경우
+    # 아직 미구현
+
+    # 4. PCA를 사용하여 20차원으로 차원 축소
+    pca = PCA( n_components=min( 20, data_scaled.shape[0], data_scaled.shape[1]))
     data_2d = pca.fit_transform(data_scaled)
 
     # 5. 노이즈 제거용 DBSCAN (필수는 아님)
@@ -153,3 +166,6 @@ def clustering(
             centroids[k] = np.zeros(dim)
     
     return names, labels, n_samples, centroids
+
+
+

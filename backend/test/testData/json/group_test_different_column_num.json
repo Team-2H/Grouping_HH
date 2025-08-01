@@ -1,0 +1,44 @@
+[
+{
+    "name": "회원1",
+    "age": 22,
+    "height": 179,
+    "weight": 60,
+    "muscle_mass": 25.8,
+    "experience": 0.2,
+    "gender": 1
+  },
+  {
+    "name": "회원2",
+    "age": 21,
+    "height": 165,
+    "weight": 62,
+    "muscle_mass": 22.8,
+    "experience": 0.7
+  },
+  {
+    "name": "회원3",
+    "age": 20,
+    "height": 179,
+    "weight": 73,
+    "muscle_mass": 30.4
+  },
+  {
+    "name": "회원4",
+    "age": 67,
+    "height": 181,
+    "weight": 91,
+    "muscle_mass": 34.1,
+    "experience": 12.5,
+    "gender": 1
+  },
+  {
+    "name": "회원5",
+    "age": 59,
+    "height": 178,
+    "weight":87,
+    "muscle_mass": 32.6,
+    "experience": 9.1,
+    "gender": 1
+  }
+]

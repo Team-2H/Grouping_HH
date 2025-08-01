@@ -2,7 +2,7 @@
 import pandas as pd
 import io
 from collections import defaultdict
-
+from io import StringIO
 
 
 class ValidationError(Exception):
@@ -14,28 +14,43 @@ class ValidationError(Exception):
 
 
 class ClusteringValidator:
-    def __init__(self, raw_data, n_clusters, max_per, min_per):
+    def __init__(self, raw_data, n_clusters, max_per, min_per, weightFactor=[]):
         self.raw_data = raw_data
         self.n_clusters = n_clusters
         self.max_per = max_per
         self.min_per = min_per
+        self.weightFactor = weightFactor
         self.errors = []
 
 
-    # validation 체크
+    # 기본 validation 체크
     def validate(self):
         self._check_configuration()
         self._check_data()
         self._check_constraints()
 
-        if self.errors:
-            raise ValidationError(self.errors)
+        if self.weightFactor != None and len(self.weightFactor) > 0:
+            self._check_weightFactor()
+
+        
     
 
     # CSV validation 체크
     def validateCSV(self, request):
         self._check_CSV(request)
         self.validate()
+        if self.errors:
+            raise ValidationError(self.errors)
+    
+
+    # JSON validation 체크
+    def validateJSON(self):
+        self.validate()
+        self._check_JSON()
+        if self.errors:
+            raise ValidationError(self.errors)
+
+        
 
 
     # 설정값 체크
@@ -132,21 +147,36 @@ class ClusteringValidator:
                     self.errors.append("데이터가 많아 그룹 수, 최대 인원수 제한을 맞출 수 없습니다. 설정값을 변경해주세요")
 
 
+    # 가중치 데이터 체크
+    def _check_weightFactor(self):
+        weightFactor = self.weightFactor
+        if len(self.raw_data[0]) != len(weightFactor)+1: # raw_data 안에는 name컬럼도 들어있어서 1을 추가함
+            self.errors.append(f"가중치 데이터의 수({len(weightFactor)})는 컬럼 수({len(self.raw_data[0])})와 같아야 합니다")
+        for weight in weightFactor:
+            try:
+                float(weight)
+            except(ValueError, TypeError):
+                self.errors.append(f"가중치 데이터는 숫자만 기입 가능합니다. 제한된 값 : {weight}")
+                continue
+            if float(weight) > 3 or float(weight) < 0.5:
+                self.errors.append(f"가중치 데이터는 0.5 이상, 3 이하여야 합니다. 제한된 값 : {weight}")
+
+
     # CSV 파일 체크
     def _check_CSV(self, request):
         # CSV 추가 validation 체크
         if not request.content_type.startswith("multipart/form-data"):
-            raise ValidationError('multipart/form-data로 전송되어야 합니다.')
+            raise ValidationError('multipart/form-data로 전송되어야 합니다')
 
         file = request.files.get('csvData')
         if file == None:
-            raise ValidationError({'error': '파일이 전송되지 않았습니다.'})
+            raise ValidationError({'error': '파일이 전송되지 않았습니다'})
         if len(file.read()) == 0:
-            raise ValidationError({'error': '파일이 비어있습니다.'})
+            raise ValidationError({'error': '파일이 비어있습니다'})
         if file.filename == '':
-            raise ValidationError({'error': '파일 이름이 없습니다.'})
+            raise ValidationError({'error': '파일 이름이 없습니다'})
         if not str(file.filename).lower().endswith(".csv"):
-            raise ValidationError({'error': 'CSV 파일이 아닙니다.'})
+            raise ValidationError({'error': 'CSV 파일이 아닙니다'})
 
         # validation 체크하느라 한번 read 했어서 포인터 앞으로 돌림
         file.seek(0)
@@ -155,14 +185,57 @@ class ClusteringValidator:
         stream = io.StringIO(file.stream.read().decode("utf-8"))
         lines = stream.getvalue().splitlines()
 
-        # 첫 줄 기준 열 개수
-        expected_num_cols = len(lines[0].split(","))
-        for i, line in enumerate(lines[1:], start=2):  # 2번째 줄부터 검사
+        # 가중치 데이터 검사 | 첫 컬럼이 weightFactor인 행 찾음
+        weightFactor = None
+        dataWithoutWeight = lines
+        for line in lines:
+            if line.split(",")[0] == 'weightFactor':
+                # 가중치 데이터 존재함. 가져옴
+                weightFactor = line.split(",")
+                break
+        if weightFactor != None:
+            # 가중치 데이터 있음
+            dataWithoutWeight = [line for line in lines if line.split(",")[0] != "weightFactor"]
+            self.weightFactor = weightFactor[1:]
+        
+        # 가중치 데이터 제외하고 첫번째 줄 기준 열 개수
+        expected_num_cols = len(dataWithoutWeight[0].split(","))
+        for i, line in enumerate(dataWithoutWeight[1:], start=2):  # 2번째 줄부터 검사
             num_cols = len(line.split(","))
             if num_cols != expected_num_cols:
-                raise ValidationError(f"{i}번째 줄의 열 개수({num_cols})가 헤더({expected_num_cols})와 다릅니다.")
+                self.errors.append(f"{i}번째 줄의 열 개수({num_cols})가 헤더({expected_num_cols})와 다릅니다.")
+
+        if self.errors:
+            raise ValidationError(self.errors)
+
+        # 가중치를 제거한 데이터
+        csv_text = "\n".join(dataWithoutWeight)
+        csv_buffer = StringIO(csv_text)
+        df = pd.read_csv(csv_buffer)
+        self.raw_data = df.to_dict(orient='records')
 
         # 문제 없으면 데이터프레임으로 읽기
-        stream.seek(0)  # 다시 처음으로 이동해서 read_csv
-        df = pd.read_csv(stream)
-        self.raw_data = df.to_dict(orient='records')
+        # stream.seek(0)  # 다시 처음으로 이동해서 read_csv
+        # df = pd.read_csv(stream)
+        # self.raw_data = df.to_dict(orient='records')
+    
+
+    def _check_JSON(self):
+        raw_data = self.raw_data
+
+        # 몇몇 데이터 row의 컬럼명이 다른 경우
+        # 첫번째 행의 key값을 전부 가져옴
+        reference_keys = set(raw_data[0].keys())
+
+        # 각 행의 key값을 하나씩 가져와서 첫 행의 key값들과 비교
+        for idx, item in enumerate(raw_data):
+            current_keys = set(item.keys())
+            if current_keys != reference_keys:
+                self.errors.append(
+                    f"컬럼명 불일치 발생 | 1번 컬럼명: {reference_keys}, {idx+1}번 컬럼명: {current_keys}"
+                )
+        if self.errors:
+            raise ValidationError(self.errors)
+
+        
+        

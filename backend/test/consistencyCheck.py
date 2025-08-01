@@ -22,15 +22,15 @@ def consisCheckWithModule(data, labels):
 
 # 1. JSON 파일로 테스트
 current_dir = os.path.dirname(os.path.abspath(__file__))
-file_path = os.path.join(current_dir, 'testData/group_pt_members_5.json')
+file_path = os.path.join(current_dir, 'testData/group_test_100_data.json')
 
 # 2. 파일 읽고 list로 변환
 with open(file_path, 'r', encoding='utf-8') as f:
     raw_data = json.load(f)
 
 # 3. 설정값 수정
-groupCount = 2
-max_elements_per_cluster = 3
+groupCount = 25
+max_elements_per_cluster = 6
 min_elements_per_cluster = 2
 
 # 4. 클러스터링 진행

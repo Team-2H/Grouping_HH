@@ -1,12 +1,16 @@
 
 from flask import Blueprint, jsonify, request
 from . import groupingLogic
-import pandas as pd
-import io
 from app.validationCheck import ValidationError, ClusteringValidator
 
 
 main = Blueprint('main', __name__)
+
+
+
+
+
+
 
 # Was 동작 테스트
 @main.route('/api/hello')
@@ -24,20 +28,23 @@ def hello():
 def grouping():
     try:
         data = request.get_json()
+        userData = data.get('userData')
         groupCount = data.get('groupCount')
         maxFactor = data.get('maxFactor')
         minFactor = data.get('minFactor')
-        userData = data.get('userData')
+        weightFactor = data.get('weightFactor')
 
         # validation 체크
-        validator = ClusteringValidator(userData, groupCount, maxFactor, minFactor)
-        validator.validate()
+        validator = ClusteringValidator(userData, groupCount, maxFactor, minFactor, weightFactor)
+        validator.validateJSON()
 
         groupCount = int(groupCount or 0)
         maxFactor = int(maxFactor or 0)
         minFactor = int(minFactor or 0)
 
-        clustered_result, centroids = groupingLogic.constrained_kmeans_with_names(userData, groupCount, maxFactor, minFactor)
+        clustered_result, centroids = groupingLogic.constrained_kmeans_with_names(
+            userData, groupCount, maxFactor, minFactor, weightFactor
+        )
 
         # labels : 각 이름의 요소가 어떤 그룹에 속하는지 적혀있는 List
             # ex) {"cluster": 7,"name": "회원1"},{"cluster": 14,"name": "회원2"},,,
@@ -51,8 +58,10 @@ def grouping():
         return jsonify(result)
     
     except ValidationError as e:
+        print(f"error : {e.messages}")
         return jsonify({"errors": e.messages}), e.status_code
     except Exception as e:
+        print(f"error : {e}")
         return jsonify({"error": str(e)}), 500
 
 
@@ -78,10 +87,11 @@ def groupingByCSV():
         groupCount = int(groupCount or 0)
         maxFactor = int(maxFactor or 0)
         minFactor = int(minFactor or 0)
+        weightFactor = validator.weightFactor
 
         # 클러스터링 로직 연결
         clustered_result, centroids = groupingLogic.constrained_kmeans_with_names(
-            userData, groupCount, maxFactor, minFactor
+            userData, groupCount, maxFactor, minFactor, weightFactor
         )
 
         result = {
@@ -92,6 +102,8 @@ def groupingByCSV():
         return jsonify(result)
     
     except ValidationError as e:
+        print(f"error : {e.messages}")
         return jsonify({"errors": e.messages}), e.status_code
     except Exception as e:
+        print(f"error : {e}")
         return jsonify({'error': str(e)}), 500
