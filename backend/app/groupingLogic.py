@@ -93,7 +93,7 @@ def clustering(
 
     # 가중치 데이터가 리스트로 들어오는 경우
     # 가중치 데이터 적용
-    if len(weightFactor) > 0:
+    if weightFactor != None and len(weightFactor) > 0:
         weightFactor = np.array(weightFactor, dtype=np.float64)
         data_scaled = data_scaled * weightFactor
     
