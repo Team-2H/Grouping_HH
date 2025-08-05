@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 
 function App() {
-  const [message, setMessage] = useState('');
+  const [message, setMessage] = useState([]); // 초기값을 빈 배열로
   const [groupCount, setGroupCount] = useState('');
   const [maxFactor, setMaxFactor] = useState('');
   const [minFactor, setMinFactor] = useState('');
@@ -67,7 +67,7 @@ function App() {
       console.log('서버 응답:', data);
       console.log('서버 응답:', data.labels);
 
-      setMessage(data.lables); // 📥 응답 데이터 저장
+      setMessage(data.labels); // 📥 응답 데이터 저장
     } catch (error) {
       console.error('서버 호출 실패:', error);
     }
@@ -86,10 +86,21 @@ function App() {
         </div>
       </main>
       {/* 🟦 서버 응답 카드 */}
-      {message && (
+      {message.length > 0 && (
         <div className="bg-white p-4 border rounded shadow mt-8">
-          <h3 className="font-semibold mb-2">서버 응답</h3>
-          <p>{message}</p>
+          <h3 className="font-semibold mb-4 text-lg">
+            서버 응답 (클러스터 결과)
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+            {message.map((item, idx) => (
+              <div key={idx} className="p-4 border rounded shadow bg-blue-50">
+                <p className="font-semibold">🧑 {item.name}</p>
+                <p className="text-sm text-gray-600">
+                  📦 Cluster {item.cluster}
+                </p>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
