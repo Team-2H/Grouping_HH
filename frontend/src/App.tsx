@@ -82,9 +82,9 @@ function App() {
   const handleButtonClick = async () => {
     const processedUserData = userData.map((user) => {
       const result: Record<string, any> = { name: user.name };
-
-      customColumns.forEach((col, idx) => {
-        result[col] = user.values[idx];
+      user.values.forEach((val, idx) => {
+        const key = `column${String(idx + 1).padStart(2, '0')}`; // column01, column02, ...
+        result[key] = Number(val); // 숫자 변환도 여기서 같이 처리
       });
       return result;
     });
