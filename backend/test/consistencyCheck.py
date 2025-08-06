@@ -22,14 +22,14 @@ def consisCheckWithModule(data, labels):
 
 # 1. JSON 파일로 테스트
 current_dir = os.path.dirname(os.path.abspath(__file__))
-file_path = os.path.join(current_dir, 'testData/group_test_100_data.json')
+file_path = os.path.join(current_dir, 'testData/json/group_test_100_data.json')
 
 # 2. 파일 읽고 list로 변환
 with open(file_path, 'r', encoding='utf-8') as f:
     raw_data = json.load(f)
 
 # 3. 설정값 수정
-groupCount = 25
+groupCount = 20
 max_elements_per_cluster = 6
 min_elements_per_cluster = 2
 
@@ -47,7 +47,7 @@ scaler = StandardScaler()
 data_scaled = scaler.fit_transform(num_data)
 
 # 5. 정합성
-sScore, dScore, cScore = consisCheckWithModule(data_scaled, labels)
+sScore, dScore, cScore = consisCheckWithModule(num_data, labels)
 print("sScore : ", sScore)
 print("dScore : ", dScore)
 print("cScore : ", cScore)

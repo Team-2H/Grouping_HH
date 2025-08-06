@@ -6,7 +6,7 @@ import math
 from sklearn.decomposition import PCA
 from sklearn.cluster import DBSCAN
 from sklearn.preprocessing import StandardScaler
-import pandas as pd
+from collections import defaultdict
 
 
 def constrained_kmeans_with_names(
@@ -14,20 +14,24 @@ def constrained_kmeans_with_names(
     n_clusters=0,
     max_elements_per_cluster=0,
     min_elements_per_cluster=0,
-    weightFactor=[],
+    factorWeight=[],
     max_iter=100,
     tol=1e-4
 ):
     
     names, labels, n_samples, centroids = clustering(
         raw_data, n_clusters, max_elements_per_cluster,
-        min_elements_per_cluster, weightFactor, max_iter, tol
+        min_elements_per_cluster, factorWeight, max_iter, tol
     )
 
     # 최종 결과: 이름과 클러스터 번호 매핑
-    clustered_result = [{"name": names[i], "cluster": int(labels[i])} for i in range(n_samples)]
+    # clustered_result = [{"name": names[i], "cluster": int(labels[i])} for i in range(n_samples)]
 
-    return clustered_result, centroids
+    # 결과 데이터 가공
+    grouped = defaultdict(list)
+    for i in range(n_samples):
+        grouped[int(labels[i])].append(names[i])
+    return dict(grouped), centroids
 
 
 
@@ -70,15 +74,15 @@ def clustering(
     n_clusters=0,
     max_elements_per_cluster=0,
     min_elements_per_cluster=0,
-    weightFactor=[],
+    factorWeight=[],
     max_iter=100,
     tol=1e-4
 ):
     # 1. 데이터에서 이름 분리
     names = [item["name"] for item in raw_data]
 
-    # 2. 데이터 추출 (name,weightFactor 제외)
-    reference_keys = set(raw_data[0].keys()) - {"name"}
+    # 2. 데이터 추출 (name,factorWeight 제외)
+    reference_keys = [key for key in raw_data[0].keys() if key != "name"]
     numeric_data = [
         [item[key] for key in reference_keys]
         for item in raw_data
@@ -91,14 +95,15 @@ def clustering(
     scaler = StandardScaler()
     data_scaled = scaler.fit_transform(data)
 
-    # 가중치 데이터가 리스트로 들어오는 경우
     # 가중치 데이터 적용
-    if weightFactor != None and len(weightFactor) > 0:
-        weightFactor = np.array(weightFactor, dtype=np.float64)
-        data_scaled = data_scaled * weightFactor
-    
-    # 가중치 데이터가 key,value로 들어오는 경우
-    # 아직 미구현
+    if factorWeight is not None and len(factorWeight) > 0:
+        # 가중치 데이터가 key,value로 들어오는 경우
+        if isinstance(factorWeight, dict):
+            factorWeight = np.array([factorWeight.get(key, 1.0) for key in reference_keys], dtype=np.float64)
+        else:
+            factorWeight = np.array(factorWeight, dtype=np.float64)
+        data_scaled = data_scaled * factorWeight
+
 
     # 4. PCA를 사용하여 20차원으로 차원 축소
     pca = PCA( n_components=min( 20, data_scaled.shape[0], data_scaled.shape[1]))

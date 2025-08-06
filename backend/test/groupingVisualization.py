@@ -66,7 +66,7 @@ def groupingVisualization(raw_data, clustered_result, centroids):
 
 # 1. JSON 파일로 테스트
 current_dir = os.path.dirname(os.path.abspath(__file__))
-file_path = os.path.join(current_dir, 'testData/group_pt_members.json')
+file_path = os.path.join(current_dir, 'testData/json/group_test_100_data.json')
 
 # 2. 파일 읽고 list로 변환
 with open(file_path, 'r', encoding='utf-8') as f:

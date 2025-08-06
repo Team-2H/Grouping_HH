@@ -1,4 +1,4 @@
-weightFactor,1,c,1,a,1,1
+factorWeight,1,c,1,a,1,1
 name,age,height,weight,muscle_mass,experience,gender
 member_1_12,23,168.0,46.0,5.7,0.6,0
 member_1_13,21,173.1,50.9,5.7,0.5,1

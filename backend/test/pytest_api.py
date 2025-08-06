@@ -14,9 +14,9 @@ TEST_CSV_DIR = "testData"
 
 
 # 데이터가 JSON으로 넘어오는 경우 테스트
-@pytest.mark.parametrize("groupCount,maxFactor,minFactor,testFile,weightFactor,expected_code",
+@pytest.mark.parametrize("groupCount,maxFactor,minFactor,testFile,factorWeight,expected_code",
                          test_param_json)
-def test_grouping(groupCount,maxFactor,minFactor,testFile,weightFactor,expected_code):
+def test_grouping(groupCount,maxFactor,minFactor,testFile,factorWeight,expected_code):
     filepath = os.path.join(TEST_CSV_DIR+"/json", testFile)
     with open(filepath, "r", encoding="utf-8") as f:
         userData = json.load(f)
@@ -26,7 +26,7 @@ def test_grouping(groupCount,maxFactor,minFactor,testFile,weightFactor,expected_
         "maxFactor": maxFactor,
         "minFactor": minFactor,
         "userData": userData,
-        "weightFactor": weightFactor
+        "factorWeight": factorWeight
     }
 
     # 요청 헤더 설정

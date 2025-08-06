@@ -32,18 +32,19 @@ def grouping():
         groupCount = data.get('groupCount')
         maxFactor = data.get('maxFactor')
         minFactor = data.get('minFactor')
-        weightFactor = data.get('weightFactor')
+        factorWeight = data.get('factorWeight')
 
         # validation 체크
-        validator = ClusteringValidator(userData, groupCount, maxFactor, minFactor, weightFactor)
+        validator = ClusteringValidator(userData, groupCount, maxFactor, minFactor, factorWeight)
         validator.validateJSON()
 
         groupCount = int(groupCount or 0)
         maxFactor = int(maxFactor or 0)
         minFactor = int(minFactor or 0)
+        factorWeight = validator.factorWeight
 
         clustered_result, centroids = groupingLogic.constrained_kmeans_with_names(
-            userData, groupCount, maxFactor, minFactor, weightFactor
+            userData, groupCount, maxFactor, minFactor, factorWeight
         )
 
         # labels : 각 이름의 요소가 어떤 그룹에 속하는지 적혀있는 List
@@ -87,11 +88,11 @@ def groupingByCSV():
         groupCount = int(groupCount or 0)
         maxFactor = int(maxFactor or 0)
         minFactor = int(minFactor or 0)
-        weightFactor = validator.weightFactor
+        factorWeight = validator.factorWeight
 
         # 클러스터링 로직 연결
         clustered_result, centroids = groupingLogic.constrained_kmeans_with_names(
-            userData, groupCount, maxFactor, minFactor, weightFactor
+            userData, groupCount, maxFactor, minFactor, factorWeight
         )
 
         result = {
