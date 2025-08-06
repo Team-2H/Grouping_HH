@@ -3,25 +3,12 @@ from flask import Blueprint, jsonify, request
 from . import groupingLogic
 from app.validationCheck import ValidationError, ClusteringValidator
 
-
 main = Blueprint('main', __name__)
-
-
-
-
-
-
 
 # Was 동작 테스트
 @main.route('/api/hello')
 def hello():
     return jsonify(message='Hello from Flask!')
-
-
-
-
-
-
 
 # 그룹핑 요청
 @main.route('/grouping', methods=['POST'])
