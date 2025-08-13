@@ -32,3 +32,7 @@ python run.py
 
 # 설치
 pip install pytest requests
+
+
+## requirements.txt 갱신
+pip freeze > requirements.txt

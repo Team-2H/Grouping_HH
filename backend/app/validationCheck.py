@@ -34,8 +34,8 @@ class ClusteringValidator:
     
 
     # CSV validation 체크
-    def validateCSV(self, request):
-        self._check_CSV(request)
+    def validateCSV(self, csvDataFile):
+        self._check_CSV(csvDataFile)
         self.validate("CSV")
         if self.errors:
             raise ValidationError(self.errors)
@@ -182,27 +182,19 @@ class ClusteringValidator:
                         self.errors.append(f"가중치 데이터는 0.5 이상, 3 이하여야 합니다. 제한된 값 : {weight}")
 
 
-    # CSV 파일 체크
-    def _check_CSV(self, request):
-        # CSV 추가 validation 체크
-        if not request.content_type.startswith("multipart/form-data"):
-            raise ValidationError('multipart/form-data로 전송되어야 합니다')
-
-        file = request.files.get('csvData')
+    # CSV 파일 체크 / Lambda 방식
+    def _check_CSV(self, csvDataFile):
+        file = csvDataFile
         if file == None:
             raise ValidationError({'error': '파일이 전송되지 않았습니다'})
         if len(file.read()) == 0:
             raise ValidationError({'error': '파일이 비어있습니다'})
-        if file.filename == '':
-            raise ValidationError({'error': '파일 이름이 없습니다'})
-        if not str(file.filename).lower().endswith(".csv"):
-            raise ValidationError({'error': 'CSV 파일이 아닙니다'})
 
         # validation 체크하느라 한번 read 했어서 포인터 앞으로 돌림
         file.seek(0)
 
         # FileStorage는 바이너리 스트림이라 디코딩 필요
-        stream = io.StringIO(file.stream.read().decode("utf-8"))
+        stream = io.StringIO(file.read().decode("utf-8"))
         lines = stream.getvalue().splitlines()
 
         # 가중치 데이터 검사 | 첫 컬럼이 factorWeight인 행 찾음
@@ -234,10 +226,58 @@ class ClusteringValidator:
         df = pd.read_csv(csv_buffer)
         self.raw_data = df.to_dict(orient='records')
 
-        # 문제 없으면 데이터프레임으로 읽기
-        # stream.seek(0)  # 다시 처음으로 이동해서 read_csv
-        # df = pd.read_csv(stream)
-        # self.raw_data = df.to_dict(orient='records')
+    # CSV 파일 체크 / flask 방식
+    # def _check_CSV(self, request):
+    #     # CSV 추가 validation 체크
+    #     if not request.content_type.startswith("multipart/form-data"):
+    #         raise ValidationError('multipart/form-data로 전송되어야 합니다')
+
+    #     file = request.files.get('csvData')
+    #     if file == None:
+    #         raise ValidationError({'error': '파일이 전송되지 않았습니다'})
+    #     if len(file.read()) == 0:
+    #         raise ValidationError({'error': '파일이 비어있습니다'})
+    #     if file.filename == '':
+    #         raise ValidationError({'error': '파일 이름이 없습니다'})
+    #     if not str(file.filename).lower().endswith(".csv"):
+    #         raise ValidationError({'error': 'CSV 파일이 아닙니다'})
+
+    #     # validation 체크하느라 한번 read 했어서 포인터 앞으로 돌림
+    #     file.seek(0)
+
+    #     # FileStorage는 바이너리 스트림이라 디코딩 필요
+    #     stream = io.StringIO(file.stream.read().decode("utf-8"))
+    #     lines = stream.getvalue().splitlines()
+
+    #     # 가중치 데이터 검사 | 첫 컬럼이 factorWeight인 행 찾음
+    #     factorWeight = None
+    #     dataWithoutWeight = lines
+    #     for line in lines:
+    #         if line.split(",")[0] == 'factorWeight':
+    #             # 가중치 데이터 존재함. 가져옴
+    #             factorWeight = line.split(",")
+    #             break
+    #     if factorWeight != None:
+    #         # 가중치 데이터 있음
+    #         dataWithoutWeight = [line for line in lines if line.split(",")[0] != "factorWeight"]
+    #         self.factorWeight = factorWeight[1:]
+        
+    #     # 가중치 데이터 제외하고 첫번째 줄 기준 열 개수
+    #     expected_num_cols = len(dataWithoutWeight[0].split(","))
+    #     for i, line in enumerate(dataWithoutWeight[1:], start=2):  # 2번째 줄부터 검사
+    #         num_cols = len(line.split(","))
+    #         if num_cols != expected_num_cols:
+    #             self.errors.append(f"{i}번째 줄의 열 개수({num_cols})가 헤더({expected_num_cols})와 다릅니다.")
+
+    #     if self.errors:
+    #         raise ValidationError(self.errors)
+
+    #     # 가중치를 제거한 데이터
+    #     csv_text = "\n".join(dataWithoutWeight)
+    #     csv_buffer = StringIO(csv_text)
+    #     df = pd.read_csv(csv_buffer)
+    #     self.raw_data = df.to_dict(orient='records')
+
     
 
     def _check_JSON(self):

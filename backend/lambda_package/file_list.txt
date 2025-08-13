@@ -1,0 +1,3 @@
+lambda_function.py
+app/groupingLogic.py
+app/validationCheck.py
