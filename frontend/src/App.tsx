@@ -5,18 +5,7 @@ function App() {
   const [groupCount, setGroupCount] = useState('');
   const [maxFactor, setMaxFactor] = useState('');
   const [minFactor, setMinFactor] = useState('');
-  // const [userData, setUserData] = useState([...]);
-  // const [userData, setUserData] = useState(() =>
-  //   Array.from({ length: 5 }, (_, i) => ({
-  //     name: `회원${i + 1}`,
-  //     age: '',
-  //     height: '',
-  //     weight: '',
-  //     muscle_mass: '',
-  //     experience: '',
-  //     gender: 0,
-  //   }))
-  // );
+
   const [customColumns, setCustomColumns] = useState([
     '컬럼1',
     '컬럼2',
@@ -29,6 +18,12 @@ function App() {
     { name: '회원4', values: ['', '', ''] },
     { name: '회원5', values: ['', '', ''] },
   ]);
+  // 고정 폭(px) — 네가 쓰는 w-48(≈192px) 기준
+  const NAME_COL_PX = 100; // "이름" 열
+  const ADD_COL_PX = 100; // "+ 열 추가" 열 (원하는 값으로 조정 가능)
+
+  // 남은 폭을 중간 컬럼 개수로 균등 분배
+  const middleColWidth = `calc((100% - ${NAME_COL_PX + ADD_COL_PX}px) / ${customColumns.length || 1})`;
 
   /* 컬럼명 변경 핸들러 */
   const handleColumnNameChange = (colIdx: number, value: string) => {
@@ -77,6 +72,24 @@ function App() {
         values: [...user.values, ''],
       }))
     );
+  };
+  // 컬럼 제거 메서드
+  const removeColumn = (colIdx: number) => {
+    // 1. 컬럼 배열에서 제거
+    const newCols = customColumns.filter((_, idx) => idx !== colIdx);
+    setCustomColumns(newCols);
+
+    // 2. 각 유저 데이터 values 배열에서도 같은 인덱스 제거
+    const newUserData = userData.map((user) => ({
+      ...user,
+      values: user.values.filter((_, idx) => idx !== colIdx),
+    }));
+    setUserData(newUserData);
+  };
+  // 행 제거 메서드
+  const removeUserRow = (rowIdx: number) => {
+    const newUserData = userData.filter((_, idx) => idx !== rowIdx);
+    setUserData(newUserData);
   };
 
   const handleButtonClick = async () => {
@@ -157,24 +170,51 @@ function App() {
           />
         </div>
 
-        {/* 유저추가 */}
-        <div className="mt-6 px-8 overflow-auto">
-          <table className="min-w-full border border-gray-300 text-sm">
-            <thead className="bg-gray-100">
+        {/* 유저데이터 table */}
+        <div className="mt-6 px-8 overflow-x-auto relative">
+          {/* <table className="min-w-full border border-gray-300 text-sm"> */}
+          <table className="w-full table-auto border border-gray-300 text-sm border-separate border-spacing-0">
+            <colgroup>
+              {/* 1) 이름 열: 고정 폭 */}
+              <col style={{ width: NAME_COL_PX }} />
+              {/* 2) 중간 컬럼들: 남은 폭을 균등 분배 */}
+              {customColumns.map((_, i) => (
+                <col key={i} style={{ width: middleColWidth }} />
+              ))}
+              {/* 3) "+ 열 추가" 열: 고정 폭 */}
+              <col style={{ width: ADD_COL_PX }} />
+            </colgroup>
+            <thead className="bg-gray-100 sticky top-0 z-20">
               <tr>
-                <th className="border px-2 py-1">이름</th>
+                <th
+                  // className="border px-2 py-1 sticky left-0 top-0 z-40 bg-gray-100 w-40 md:w-48"
+                  className="border px-2 py-1 sticky left-0 top-0 z-40 bg-gray-100"
+                  style={{ minWidth: '10rem' }}
+                >
+                  이름
+                </th>
                 {customColumns.map((col, colIdx) => (
-                  <th key={colIdx} className="border px-2 py-1">
-                    <input
-                      value={col}
-                      onChange={(e) =>
-                        handleColumnNameChange(colIdx, e.target.value)
-                      }
-                      className="w-full border rounded px-1 py-0.5"
-                    />
+                  <th key={colIdx} className="border px-2 py-1 w-15 md:w-32">
+                    <div className="flex items-center gap-2">
+                      <input
+                        value={col}
+                        onChange={(e) =>
+                          handleColumnNameChange(colIdx, e.target.value)
+                        }
+                        className="flex-1 min-w-0 border rounded px-1 py-0.5 text-xs"
+                      />
+                      <button
+                        onClick={() => removeColumn(colIdx)}
+                        className="shrink-0 text-red-500 hover:text-red-700 px-1"
+                        aria-label={`컬럼 ${colIdx + 1} 삭제`}
+                        title="열 삭제"
+                      >
+                        ✕
+                      </button>
+                    </div>
                   </th>
                 ))}
-                <th className="border px-2 py-1">
+                <th className="border px-2 py-1 whitespace-nowrap">
                   <button
                     onClick={addColumn}
                     className="text-blue-600 hover:underline"
@@ -188,21 +228,37 @@ function App() {
             <tbody>
               {userData.map((user, rowIdx) => (
                 <tr key={rowIdx} className="odd:bg-white even:bg-gray-50">
-                  <td className="border px-2 py-1">
-                    <input
-                      value={user.name}
-                      onChange={(e) => handleNameChange(rowIdx, e.target.value)}
-                      className="w-full border rounded px-1 py-0.5"
-                    />
+                  <td className="border px-2 py-1 sticky left-0 z-10 bg-white">
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => removeUserRow(rowIdx)}
+                        className="shrink-0 text-red-500 hover:text-red-700 px-1"
+                        aria-label={`행 ${rowIdx + 1} 삭제`}
+                        title="행 삭제"
+                        type="button"
+                      >
+                        ✕
+                      </button>
+                      <input
+                        value={user.name}
+                        onChange={(e) =>
+                          handleNameChange(rowIdx, e.target.value)
+                        }
+                        className="w-full border rounded px-1 py-0.5"
+                      />
+                    </div>
                   </td>
                   {user.values.map((val, colIdx) => (
-                    <td key={colIdx} className="border px-2 py-1">
+                    <td
+                      key={colIdx}
+                      className="border px-2 py-1 w-24 sm:w-28 md:w-32"
+                    >
                       <input
                         value={val}
                         onChange={(e) =>
                           handleValueChange(rowIdx, colIdx, e.target.value)
                         }
-                        className="w-full border rounded px-1 py-0.5"
+                        className="w-full min-w-0 border rounded px-1 py-0.5 text-xs"
                       />
                     </td>
                   ))}
@@ -226,7 +282,7 @@ function App() {
           </table>
         </div>
 
-        {/* 🔵 버튼 추가 */}
+        {/* 🔵 submit 버튼 */}
         <div className="mt-12 mb-10 flex justify-center">
           <button
             onClick={handleButtonClick}
