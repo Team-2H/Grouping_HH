@@ -21,6 +21,18 @@ def install_requirements():
             "-r", str(REQUIREMENTS_FILE),
             "-t", str(INSTALL_DIR)
         ])
+        subprocess.run(
+            'find python/ -type d -name "__pycache__" -exec rm -rf {} +',
+            shell=True,
+            check=True
+        )
+
+        subprocess.run(
+            'find python/ -name "*.pyc" -delete',
+            shell=True,
+            check=True
+        )
+        
     else:
         print("⚠️ requirements.txt not found. Skipping dependency installation.")
 

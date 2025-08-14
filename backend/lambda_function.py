@@ -11,17 +11,7 @@ def lambda_handler(event, context):
     http_method = event['httpMethod']
     path = event['path']
     
-    if path == '/api/hello' and http_method == 'GET':
-        return {
-            'statusCode': 200,
-            'headers': {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
-            },
-            'body': json.dumps({'message': 'Hello from Flask!'})
-        }
-    
-    elif path == '/grouping' and http_method == 'POST':
+    if path == '/grouping' and http_method == 'POST':
         try:
             body = event.get('body', '{}')
 
