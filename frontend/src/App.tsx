@@ -18,6 +18,20 @@ function App() {
     { name: '회원4', values: ['', '', ''] },
     { name: '회원5', values: ['', '', ''] },
   ]);
+  // (상단 state 구역 인근에 추가)
+  // ✨ 추가
+  const [showWeight, setShowWeight] = useState(false); // 가중치 행 표시/숨김
+  const [factorWeight, setFactorWeight] = useState<number[]>(
+    Array(customColumns.length).fill(1) // 기본 가중치 1
+  );
+  // ✨ 추가: 컬럼명을 서버로 보낼 키로 변환(영문 권장: age, height, ...)
+  const toKey = (label: string) =>
+    label
+      .trim()
+      .toLowerCase()
+      .replace(/[\s\-]+/g, '_') // 공백/하이픈 → _
+      .replace(/[^\w]/g, '') // 영문/숫자/언더스코어만
+      .replace(/^(\d)/, '_$1'); // 숫자로 시작하면 앞에 _
   // 고정 폭(px) — 네가 쓰는 w-48(≈192px) 기준
   const NAME_COL_PX = 100; // "이름" 열
   const ADD_COL_PX = 100; // "+ 열 추가" 열 (원하는 값으로 조정 가능)
@@ -31,16 +45,6 @@ function App() {
     newCols[colIdx] = value;
     setCustomColumns(newCols);
   };
-
-  // const handleUserInputChange = (
-  //   index: number,
-  //   field: string,
-  //   value: string
-  // ) => {
-  //   const newData = [...userData];
-  //   newData[index][field] = value;
-  //   setUserData(newData);
-  // };
 
   const handleNameChange = (rowIdx: number, value: string) => {
     const newData = [...userData];
@@ -72,6 +76,8 @@ function App() {
         values: [...user.values, ''],
       }))
     );
+    // ✨ 추가: 가중치도 동기화
+    setFactorWeight((prev) => [...prev, 1]);
   };
   // 컬럼 제거 메서드
   const removeColumn = (colIdx: number) => {
@@ -85,6 +91,8 @@ function App() {
       values: user.values.filter((_, idx) => idx !== colIdx),
     }));
     setUserData(newUserData);
+    // ✨ 추가: 가중치도 동일 인덱스 제거
+    setFactorWeight((prev) => prev.filter((_, idx) => idx !== colIdx));
   };
   // 행 제거 메서드
   const removeUserRow = (rowIdx: number) => {
@@ -93,30 +101,58 @@ function App() {
   };
 
   const handleButtonClick = async () => {
-    const processedUserData = userData.map((user) => {
-      const result: Record<string, any> = { name: user.name };
-      user.values.forEach((val, idx) => {
-        const key = `column${String(idx + 1).padStart(2, '0')}`; // column01, column02, ...
-        result[key] = Number(val); // 숫자 변환도 여기서 같이 처리
-      });
-      return result;
+    // 1) 컬럼명 → 키로 변환 (예: 'muscle mass' → 'muscle_mass')
+    const keys = customColumns.map(toKey);
+
+    // 2) 가중치 객체 만들기 (name 제외)
+    //    요구사항: factorWeight는 배열이지만 서버에는 [{ key: weight, ... }] 형태로 보냄
+    const factorWeightObj: Record<string, number> = {};
+    keys.forEach((k, i) => {
+      factorWeightObj[k] = Number(factorWeight[i] ?? 1);
     });
 
+    // 3) 유저 데이터 매핑 (각 컬럼 값을 위 keys로 매핑)
+    const processedUserData = userData.map((user) => {
+      const obj: Record<string, any> = { name: user.name };
+      keys.forEach((k, i) => {
+        obj[k] = Number(user.values[i]); // 숫자 변환
+      });
+      return obj;
+    });
+
+    // 기본 payload
+    const payload: Record<string, any> = {
+      groupCount: Number(groupCount),
+      maxFactor: Number(maxFactor),
+      minFactor: Number(minFactor),
+      userData: processedUserData,
+    };
+
+    // ✨ 조건부 factorWeight 포함
+    if (showWeight) {
+      const factorWeightObj: Record<string, number> = {};
+      keys.forEach(
+        (k, i) => (factorWeightObj[k] = Number(factorWeight[i] ?? 1))
+      );
+
+      // 전부 1이면 굳이 안 보냄 (원하면 이 조건을 제거해 항상 보내도 됨)
+      const anyNotOne = Object.values(factorWeightObj).some((v) => v !== 1);
+      if (anyNotOne) {
+        payload.factorWeight = [factorWeightObj];
+      }
+    }
+    // showWeight === false 인 경우는 factorWeight를 아예 안 넣음
+
     try {
-      const response = await fetch('http://127.0.0.1:5000/grouping', {
+      const res = await fetch('http://127.0.0.1:5000/grouping', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          groupCount: Number(groupCount),
-          maxFactor: Number(maxFactor),
-          minFactor: Number(minFactor),
-          userData: processedUserData,
-        }),
+        body: JSON.stringify(payload),
       });
-      const data = await response.json();
+      const data = await res.json();
       setMessage(data.labels);
-    } catch (error) {
-      console.error('서버 호출 실패:', error);
+    } catch (e) {
+      console.error('서버 호출 실패:', e);
     }
   };
 
@@ -172,7 +208,26 @@ function App() {
 
         {/* 유저데이터 table */}
         <div className="mt-6 px-8 overflow-x-auto relative">
-          {/* <table className="min-w-full border border-gray-300 text-sm"> */}
+          {/* ✨ 변경: 토글 시 숨김으로 바뀌면 가중치 전부 1로 초기화 */}
+          <div className="mb-2 flex justify-end">
+            <button
+              onClick={() =>
+                setShowWeight((prev) => {
+                  const next = !prev;
+                  if (!next) {
+                    // 숨김 상태로 전환될 때 가중치 전부 1로
+                    setFactorWeight(Array(customColumns.length).fill(1));
+                  }
+                  return next;
+                })
+              }
+              className="px-3 py-1 border rounded hover:bg-gray-50"
+              type="button"
+              title="가중치 행 추가/제거"
+            >
+              {showWeight ? '가중치 제거' : '가중치 추가'}
+            </button>
+          </div>
           <table className="w-full table-auto border border-gray-300 text-sm border-separate border-spacing-0">
             <colgroup>
               {/* 1) 이름 열: 고정 폭 */}
@@ -223,6 +278,35 @@ function App() {
                   </button>
                 </th>
               </tr>
+              {/* ✨ 추가: 가중치 행 (thead 바로 아래) */}
+              {showWeight && (
+                <tr className="bg-yellow-50">
+                  {/* 이름 열에는 입력 없음(요구: name 안 받기) */}
+                  <th className="border px-2 py-1 sticky left-0 z-30 bg-yellow-50 text-left">
+                    가중치
+                  </th>
+                  {customColumns.map((_, colIdx) => (
+                    <th key={colIdx} className="border px-2 py-1">
+                      <input
+                        type="number"
+                        step="0.1"
+                        value={factorWeight[colIdx] ?? 1}
+                        onChange={(e) => {
+                          const v = Number(e.target.value);
+                          setFactorWeight((prev) => {
+                            const copy = [...prev];
+                            copy[colIdx] = isNaN(v) ? 0 : v;
+                            return copy;
+                          });
+                        }}
+                        className="w-full min-w-0 border rounded px-1 py-0.5 text-xs text-right"
+                        placeholder="1"
+                      />
+                    </th>
+                  ))}
+                  <th className="border px-2 py-1" />
+                </tr>
+              )}
             </thead>
 
             <tbody>
