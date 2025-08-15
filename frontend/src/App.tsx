@@ -1,7 +1,26 @@
 import React, { useState } from 'react';
 
 function App() {
-  const [message, setMessage] = useState([]); // 초기값을 빈 배열로
+  // ⬆️ import 아래/컴포넌트 위쪽 아무대나
+  type Team = { cluster: number; members: string[] };
+
+  const normalizeLabels = (labels: any): Team[] => {
+    if (!labels) return [];
+    if (typeof labels === 'object' && !Array.isArray(labels)) {
+      return Object.keys(labels)
+        .sort((a, b) => Number(a) - Number(b))
+        .map((k) => ({ cluster: Number(k), members: labels[k] as string[] }));
+    }
+    // (혹시 배열로 오면 대비)
+    if (Array.isArray(labels)) {
+      // [[...], [...]] 형태 가정
+      return labels.map((members, i) => ({ cluster: i, members }));
+    }
+    return [];
+  };
+
+  // 기존: const [message, setMessage] = useState([]);
+  const [message, setMessage] = useState<Team[]>([]);
   const [groupCount, setGroupCount] = useState('');
   const [maxFactor, setMaxFactor] = useState('');
   const [minFactor, setMinFactor] = useState('');
@@ -150,7 +169,8 @@ function App() {
         body: JSON.stringify(payload),
       });
       const data = await res.json();
-      setMessage(data.labels);
+      // 기존: setMessage(data.labels);
+      setMessage(normalizeLabels(data.labels));
     } catch (e) {
       console.error('서버 호출 실패:', e);
     }
@@ -168,13 +188,30 @@ function App() {
             <h3 className="font-semibold mb-4 text-lg">
               서버 응답 (클러스터 결과)
             </h3>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-              {message.map((item, idx) => (
-                <div key={idx} className="p-4 border rounded shadow bg-blue-50">
-                  <p className="font-semibold">🧑 {item.name}</p>
-                  <p className="text-sm text-gray-600">
-                    📦 Cluster {item.cluster}
-                  </p>
+              {message.map((team) => (
+                <div
+                  key={team.cluster}
+                  className="p-4 border rounded shadow bg-blue-50"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="font-semibold">👥 팀 {team.cluster + 1}</p>
+                    <span className="text-xs text-gray-600">
+                      인원 {team.members.length}명
+                    </span>
+                  </div>
+                  <ul className="space-y-1">
+                    {team.members.map((name, i) => (
+                      <li
+                        key={`${team.cluster}-${i}`}
+                        className="flex items-center gap-2"
+                      >
+                        <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-500" />
+                        <span className="text-sm">{name}</span>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               ))}
             </div>
