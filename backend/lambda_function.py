@@ -8,10 +8,17 @@ import tempfile
 
 def lambda_handler(event, context):
     # API Gateway에서 오는 이벤트 파싱
-    http_method = event['httpMethod']
-    path = event['path']
+    # 이 방식은 AWS HTTP Api 방식
+    requestContext = event['requestContext']
+    http = requestContext['http']
+    http_method = http['method']
+    path = http['path']
+
+    # 이 방식은 AWS Rest API 방식
+    # http_method = event['httpMethod']
+    # path = event['path']
     
-    if path == '/grouping' and http_method == 'POST':
+    if path == '/prod/grouping' and http_method == 'POST':
         try:
             body = event.get('body', '{}')
 
@@ -50,26 +57,30 @@ def lambda_handler(event, context):
 
             return {
                 'statusCode': 200,
-                'headers': {
-                    'Content-Type': 'application/json',
-                    'Access-Control-Allow-Origin': '*'
-                },
-                'body': result
+                'headers': {'Content-Type': 'application/json'},
+                'body': json.dumps(result)
             }
         
         except ValidationError as e:
+            print('ValidationError!')
+            print(f'e.status_code : {e.status_code}')
+            print(f'e.messages : {e.messages}')
             return {
                 'statusCode': e.status_code,
+                'headers': {'Content-Type': 'application/json'},
                 'body': json.dumps({'errors': e.messages})
             }
         except Exception as e:
+            print('Exception!')
+            print(f'e.messages : {str(e)}')
             return {
                 'statusCode': 500,
+                'headers': {'Content-Type': 'application/json'},
                 'body': json.dumps({'error': str(e)})
             }
 
 
-    elif path == '/groupingByCSV' and http_method == 'POST':
+    elif path == '/prod/groupingByCSV' and http_method == 'POST':
         try:
             # Content-Type 확인
             headers = event.get('headers', {})
@@ -158,26 +169,30 @@ def lambda_handler(event, context):
             }
             return {
                 'statusCode': 200,
-                'headers': {
-                    'Content-Type': 'application/json',
-                    'Access-Control-Allow-Origin': '*'
-                },
-                'body': result
+                'headers': {'Content-Type': 'application/json'},
+                'body': json.dumps(result)
             }
         
         except ValidationError as e:
+            print('ValidationError!')
+            print(f'e.status_code : {e.status_code}')
+            print(f'e.messages : {e.messages}')
             return {
                 'statusCode': e.status_code,
+                'headers': {'Content-Type': 'application/json'},
                 'body': json.dumps({'errors': e.messages})
             }
         except Exception as e:
+            print('Exception!')
+            print(f'e.messages : {str(e)}')
             return {
                 'statusCode': 500,
+                'headers': {'Content-Type': 'application/json'},
                 'body': json.dumps({'error': str(e)})
             }
-
     
     return {
         'statusCode': 404,
+        'headers': {'Content-Type': 'application/json'},
         'body': json.dumps({'error': 'Not found'})
     }
