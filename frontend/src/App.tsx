@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 function App() {
   // ⬆️ import 아래/컴포넌트 위쪽 아무대나
@@ -63,6 +63,35 @@ function App() {
 
   // 남은 폭을 중간 컬럼 개수로 균등 분배
   const middleColWidth = `calc((100% - ${NAME_COL_PX + ADD_COL_PX}px) / ${customColumns.length || 1})`;
+
+  // ⏳ 로딩 오버레이
+  const [isLoading, setIsLoading] = useState(false);
+  const MIN_SPINNER_MS = 1000; // 최소 1초
+
+  // 어떤 비동기 작업이든 감싸면, 로딩 오버레이가 최소 1초 유지됨
+  const withLoading = async (task: () => Promise<void>) => {
+    setIsLoading(true);
+    const start = Date.now();
+    try {
+      await task();
+    } finally {
+      const elapsed = Date.now() - start;
+      const remain = MIN_SPINNER_MS - elapsed;
+      if (remain > 0) {
+        setTimeout(() => setIsLoading(false), remain);
+      } else {
+        setIsLoading(false);
+      }
+    }
+  };
+
+  // 오버레이 뜰 때 스크롤 잠그기(선택)
+  useEffect(() => {
+    document.documentElement.style.overflow = isLoading ? 'hidden' : '';
+    return () => {
+      document.documentElement.style.overflow = '';
+    };
+  }, [isLoading]);
 
   /* 컬럼명 변경 핸들러 */
   const handleColumnNameChange = (colIdx: number, value: string) => {
@@ -142,13 +171,15 @@ function App() {
     if (minFactor) formData.append('minFactor', String(minFactor));
 
     try {
-      const res = await fetch(CSV_ENDPOINT, {
-        method: 'POST',
-        body: formData, // ❗️multipart/form-data: Content-Type 수동 지정 금지
+      await withLoading(async () => {
+        const res = await fetch(CSV_ENDPOINT, {
+          method: 'POST',
+          body: formData, // ❗️multipart/form-data: Content-Type 수동 지정 금지
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        setMessage(normalizeLabels(data.labels));
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      setMessage(normalizeLabels(data.labels));
     } catch (e) {
       console.error('CSV 업로드 실패:', e);
       alert('CSV 업로드 중 오류가 발생했습니다. 콘솔을 확인하세요.');
@@ -199,14 +230,16 @@ function App() {
     // showWeight === false 인 경우는 factorWeight를 아예 안 넣음
 
     try {
-      const res = await fetch('http://127.0.0.1:5000/grouping', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+      await withLoading(async () => {
+        const res = await fetch('http://127.0.0.1:5000/grouping', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        // 기존: setMessage(data.labels);
+        setMessage(normalizeLabels(data.labels));
       });
-      const data = await res.json();
-      // 기존: setMessage(data.labels);
-      setMessage(normalizeLabels(data.labels));
     } catch (e) {
       console.error('서버 호출 실패:', e);
     }
@@ -214,6 +247,18 @@ function App() {
 
   return (
     <div className="flex flex-col min-h-screen font-sans">
+      {isLoading && (
+        <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm">
+          <div
+            className="w-16 h-16 rounded-full border-4 border-gray-300 border-t-blue-600 animate-spin"
+            aria-hidden="true"
+          />
+          <p className="mt-4 text-gray-800 font-medium">분석 중…</p>
+          <p className="text-xs text-gray-500 mt-1">
+            잠시만 기다려주세요 (≈1초)
+          </p>
+        </div>
+      )}
       {/* 🟦 네비게이션 바 */}
       <header className="bg-gray-800 text-white p-4">Nav Bar</header>
       {/* 🟨 콘텐츠 영역 */}
