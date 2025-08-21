@@ -37,6 +37,12 @@ function App() {
     { name: '회원4', values: ['', '', ''] },
     { name: '회원5', values: ['', '', ''] },
   ]);
+
+  // ⬇⬇⬇ 추가: 업로드 모드 / 파일 상태 / CSV 엔드포인트
+  const [mode, setMode] = useState<'manual' | 'csv'>('manual');
+  const [csvFile, setCsvFile] = useState<File | null>(null);
+  const CSV_ENDPOINT = 'http://127.0.0.1:5000/groupingByCSV';
+
   // (상단 state 구역 인근에 추가)
   // ✨ 추가
   const [showWeight, setShowWeight] = useState(false); // 가중치 행 표시/숨김
@@ -117,6 +123,36 @@ function App() {
   const removeUserRow = (rowIdx: number) => {
     const newUserData = userData.filter((_, idx) => idx !== rowIdx);
     setUserData(newUserData);
+  };
+
+  // ...기존 handleButtonClick 바로 위/아래 어느 곳이나
+  const handleCsvUpload = async () => {
+    if (!csvFile) {
+      alert('CSV 파일을 선택해 주세요.');
+      return;
+    }
+
+    const formData = new FormData();
+    // 백엔드가 기대하는 필드명에 맞춰 조정하세요 (보통 'file' or 'csv')
+    formData.append('csvData', csvFile, csvFile.name);
+
+    // 숫자 파라미터도 함께 전송 (서버에서 사용한다면)
+    if (groupCount) formData.append('groupCount', String(groupCount));
+    if (maxFactor) formData.append('maxFactor', String(maxFactor));
+    if (minFactor) formData.append('minFactor', String(minFactor));
+
+    try {
+      const res = await fetch(CSV_ENDPOINT, {
+        method: 'POST',
+        body: formData, // ❗️multipart/form-data: Content-Type 수동 지정 금지
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setMessage(normalizeLabels(data.labels));
+    } catch (e) {
+      console.error('CSV 업로드 실패:', e);
+      alert('CSV 업로드 중 오류가 발생했습니다. 콘솔을 확인하세요.');
+    }
   };
 
   const handleButtonClick = async () => {
@@ -217,8 +253,25 @@ function App() {
             </div>
           </div>
         )}
+        {/* ✅ 모드 전환 토글 */}
+        <div className="mt-4 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setMode('manual')}
+            className={`px-3 py-1 rounded border ${mode === 'manual' ? 'bg-blue-600 text-white' : 'bg-white'}`}
+          >
+            수동 입력
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode('csv')}
+            className={`px-3 py-1 rounded border ${mode === 'csv' ? 'bg-blue-600 text-white' : 'bg-white'}`}
+          >
+            CSV 업로드
+          </button>
+        </div>
 
-        {/* input창 */}
+        {/* 공통 파라미터 (groupCount/max/min) */}
         <div className="mt-6 flex flex-col sm:flex-row justify-center gap-4">
           <input
             type="number"
@@ -243,175 +296,210 @@ function App() {
           />
         </div>
 
-        {/* 유저데이터 table */}
-        <div className="mt-6 px-8 overflow-x-auto relative">
-          {/* ✨ 변경: 토글 시 숨김으로 바뀌면 가중치 전부 1로 초기화 */}
-          <div className="mb-2 flex justify-end">
-            <button
-              onClick={() =>
-                setShowWeight((prev) => {
-                  const next = !prev;
-                  if (!next) {
-                    // 숨김 상태로 전환될 때 가중치 전부 1로
-                    setFactorWeight(Array(customColumns.length).fill(1));
-                  }
-                  return next;
-                })
-              }
-              className="px-3 py-1 border rounded hover:bg-gray-50"
-              type="button"
-              title="가중치 행 추가/제거"
-            >
-              {showWeight ? '가중치 제거' : '가중치 추가'}
-            </button>
+        {/* ✅ CSV 업로드 모드 UI */}
+        {mode === 'csv' && (
+          <div className="mt-6 max-w-2xl mx-auto w-full">
+            <div className="border rounded p-4 bg-white">
+              <p className="text-sm text-gray-700 mb-2">
+                CSV 파일을 선택하세요. (예:{' '}
+                <code>name, column01, column02, ...</code>)
+              </p>
+              <input
+                type="file"
+                accept=".csv"
+                onChange={(e) => setCsvFile(e.target.files?.[0] ?? null)}
+                className="block w-full"
+              />
+              <div className="mt-4 flex justify-end">
+                <button
+                  type="button"
+                  onClick={handleCsvUpload}
+                  disabled={!csvFile}
+                  className={`px-4 py-2 rounded ${csvFile ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`}
+                >
+                  CSV로 서버 호출
+                </button>
+              </div>
+            </div>
           </div>
-          <table className="w-full table-auto border border-gray-300 text-sm border-separate border-spacing-0">
-            <colgroup>
-              {/* 1) 이름 열: 고정 폭 */}
-              <col style={{ width: NAME_COL_PX }} />
-              {/* 2) 중간 컬럼들: 남은 폭을 균등 분배 */}
-              {customColumns.map((_, i) => (
-                <col key={i} style={{ width: middleColWidth }} />
-              ))}
-              {/* 3) "+ 열 추가" 열: 고정 폭 */}
-              <col style={{ width: ADD_COL_PX }} />
-            </colgroup>
-            <thead className="bg-gray-100 sticky top-0 z-20">
-              <tr>
-                <th
-                  // className="border px-2 py-1 sticky left-0 top-0 z-40 bg-gray-100 w-40 md:w-48"
-                  className="border px-2 py-1 sticky left-0 top-0 z-40 bg-gray-100"
-                  style={{ minWidth: '10rem' }}
-                >
-                  이름
-                </th>
-                {customColumns.map((col, colIdx) => (
-                  <th key={colIdx} className="border px-2 py-1 w-15 md:w-32">
-                    <div className="flex items-center gap-2">
-                      <input
-                        value={col}
-                        onChange={(e) =>
-                          handleColumnNameChange(colIdx, e.target.value)
-                        }
-                        className="flex-1 min-w-0 border rounded px-1 py-0.5 text-xs"
-                      />
-                      <button
-                        onClick={() => removeColumn(colIdx)}
-                        className="shrink-0 text-red-500 hover:text-red-700 px-1"
-                        aria-label={`컬럼 ${colIdx + 1} 삭제`}
-                        title="열 삭제"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  </th>
-                ))}
-                <th className="border px-2 py-1 whitespace-nowrap">
-                  <button
-                    onClick={addColumn}
-                    className="text-blue-600 hover:underline"
-                  >
-                    + 열 추가
-                  </button>
-                </th>
-              </tr>
-              {/* ✨ 추가: 가중치 행 (thead 바로 아래) */}
-              {showWeight && (
-                <tr className="bg-yellow-50">
-                  {/* 이름 열에는 입력 없음(요구: name 안 받기) */}
-                  <th className="border px-2 py-1 sticky left-0 z-30 bg-yellow-50 text-left">
-                    가중치
-                  </th>
-                  {customColumns.map((_, colIdx) => (
-                    <th key={colIdx} className="border px-2 py-1">
-                      <input
-                        type="number"
-                        step="0.1"
-                        value={factorWeight[colIdx] ?? 1}
-                        onChange={(e) => {
-                          const v = Number(e.target.value);
-                          setFactorWeight((prev) => {
-                            const copy = [...prev];
-                            copy[colIdx] = isNaN(v) ? 0 : v;
-                            return copy;
-                          });
-                        }}
-                        className="w-full min-w-0 border rounded px-1 py-0.5 text-xs text-right"
-                        placeholder="1"
-                      />
-                    </th>
-                  ))}
-                  <th className="border px-2 py-1" />
-                </tr>
-              )}
-            </thead>
+        )}
 
-            <tbody>
-              {userData.map((user, rowIdx) => (
-                <tr key={rowIdx} className="odd:bg-white even:bg-gray-50">
-                  <td className="border px-2 py-1 sticky left-0 z-10 bg-white">
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => removeUserRow(rowIdx)}
-                        className="shrink-0 text-red-500 hover:text-red-700 px-1"
-                        aria-label={`행 ${rowIdx + 1} 삭제`}
-                        title="행 삭제"
-                        type="button"
-                      >
-                        ✕
-                      </button>
-                      <input
-                        value={user.name}
-                        onChange={(e) =>
-                          handleNameChange(rowIdx, e.target.value)
-                        }
-                        className="w-full border rounded px-1 py-0.5"
-                      />
-                    </div>
-                  </td>
-                  {user.values.map((val, colIdx) => (
-                    <td
-                      key={colIdx}
-                      className="border px-2 py-1 w-24 sm:w-28 md:w-32"
+        {/* 유저데이터 table */}
+        {mode === 'manual' && (
+          <>
+            <div className="mt-6 px-8 overflow-x-auto relative">
+              {/* ✨ 변경: 토글 시 숨김으로 바뀌면 가중치 전부 1로 초기화 */}
+              <div className="mb-2 flex justify-end">
+                <button
+                  onClick={() =>
+                    setShowWeight((prev) => {
+                      const next = !prev;
+                      if (!next) {
+                        // 숨김 상태로 전환될 때 가중치 전부 1로
+                        setFactorWeight(Array(customColumns.length).fill(1));
+                      }
+                      return next;
+                    })
+                  }
+                  className="px-3 py-1 border rounded hover:bg-gray-50"
+                  type="button"
+                  title="가중치 행 추가/제거"
+                >
+                  {showWeight ? '가중치 제거' : '가중치 추가'}
+                </button>
+              </div>
+              <table className="w-full table-auto border border-gray-300 text-sm border-separate border-spacing-0">
+                <colgroup>
+                  {/* 1) 이름 열: 고정 폭 */}
+                  <col style={{ width: NAME_COL_PX }} />
+                  {/* 2) 중간 컬럼들: 남은 폭을 균등 분배 */}
+                  {customColumns.map((_, i) => (
+                    <col key={i} style={{ width: middleColWidth }} />
+                  ))}
+                  {/* 3) "+ 열 추가" 열: 고정 폭 */}
+                  <col style={{ width: ADD_COL_PX }} />
+                </colgroup>
+                <thead className="bg-gray-100 sticky top-0 z-20">
+                  <tr>
+                    <th
+                      // className="border px-2 py-1 sticky left-0 top-0 z-40 bg-gray-100 w-40 md:w-48"
+                      className="border px-2 py-1 sticky left-0 top-0 z-40 bg-gray-100"
+                      style={{ minWidth: '10rem' }}
                     >
-                      <input
-                        value={val}
-                        onChange={(e) =>
-                          handleValueChange(rowIdx, colIdx, e.target.value)
-                        }
-                        className="w-full min-w-0 border rounded px-1 py-0.5 text-xs"
-                      />
-                    </td>
-                  ))}
-                  <td className="border px-2 py-1" />
-                </tr>
-              ))}
-              <tr>
-                <td
-                  colSpan={customColumns.length + 2}
-                  className="text-center py-2"
-                >
-                  <button
-                    onClick={addUserRow}
-                    className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700"
-                  >
-                    + 행 추가
-                  </button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+                      이름
+                    </th>
+                    {customColumns.map((col, colIdx) => (
+                      <th
+                        key={colIdx}
+                        className="border px-2 py-1 w-15 md:w-32"
+                      >
+                        <div className="flex items-center gap-2">
+                          <input
+                            value={col}
+                            onChange={(e) =>
+                              handleColumnNameChange(colIdx, e.target.value)
+                            }
+                            className="flex-1 min-w-0 border rounded px-1 py-0.5 text-xs"
+                          />
+                          <button
+                            onClick={() => removeColumn(colIdx)}
+                            className="shrink-0 text-red-500 hover:text-red-700 px-1"
+                            aria-label={`컬럼 ${colIdx + 1} 삭제`}
+                            title="열 삭제"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      </th>
+                    ))}
+                    <th className="border px-2 py-1 whitespace-nowrap">
+                      <button
+                        onClick={addColumn}
+                        className="text-blue-600 hover:underline"
+                      >
+                        + 열 추가
+                      </button>
+                    </th>
+                  </tr>
+                  {/* ✨ 추가: 가중치 행 (thead 바로 아래) */}
+                  {showWeight && (
+                    <tr className="bg-yellow-50">
+                      {/* 이름 열에는 입력 없음(요구: name 안 받기) */}
+                      <th className="border px-2 py-1 sticky left-0 z-30 bg-yellow-50 text-left">
+                        가중치
+                      </th>
+                      {customColumns.map((_, colIdx) => (
+                        <th key={colIdx} className="border px-2 py-1">
+                          <input
+                            type="number"
+                            step="0.1"
+                            value={factorWeight[colIdx] ?? 1}
+                            onChange={(e) => {
+                              const v = Number(e.target.value);
+                              setFactorWeight((prev) => {
+                                const copy = [...prev];
+                                copy[colIdx] = isNaN(v) ? 0 : v;
+                                return copy;
+                              });
+                            }}
+                            className="w-full min-w-0 border rounded px-1 py-0.5 text-xs text-right"
+                            placeholder="1"
+                          />
+                        </th>
+                      ))}
+                      <th className="border px-2 py-1" />
+                    </tr>
+                  )}
+                </thead>
 
-        {/* 🔵 submit 버튼 */}
-        <div className="mt-12 mb-10 flex justify-center">
-          <button
-            onClick={handleButtonClick}
-            className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-          >
-            서버 호출
-          </button>
-        </div>
+                <tbody>
+                  {userData.map((user, rowIdx) => (
+                    <tr key={rowIdx} className="odd:bg-white even:bg-gray-50">
+                      <td className="border px-2 py-1 sticky left-0 z-10 bg-white">
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => removeUserRow(rowIdx)}
+                            className="shrink-0 text-red-500 hover:text-red-700 px-1"
+                            aria-label={`행 ${rowIdx + 1} 삭제`}
+                            title="행 삭제"
+                            type="button"
+                          >
+                            ✕
+                          </button>
+                          <input
+                            value={user.name}
+                            onChange={(e) =>
+                              handleNameChange(rowIdx, e.target.value)
+                            }
+                            className="w-full border rounded px-1 py-0.5"
+                          />
+                        </div>
+                      </td>
+                      {user.values.map((val, colIdx) => (
+                        <td
+                          key={colIdx}
+                          className="border px-2 py-1 w-24 sm:w-28 md:w-32"
+                        >
+                          <input
+                            value={val}
+                            onChange={(e) =>
+                              handleValueChange(rowIdx, colIdx, e.target.value)
+                            }
+                            className="w-full min-w-0 border rounded px-1 py-0.5 text-xs"
+                          />
+                        </td>
+                      ))}
+                      <td className="border px-2 py-1" />
+                    </tr>
+                  ))}
+                  <tr>
+                    <td
+                      colSpan={customColumns.length + 2}
+                      className="text-center py-2"
+                    >
+                      <button
+                        onClick={addUserRow}
+                        className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700"
+                      >
+                        + 행 추가
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            {/* 🔵 submit 버튼 */}
+            <div className="mt-12 mb-10 flex justify-center">
+              <button
+                onClick={handleButtonClick}
+                className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+              >
+                서버 호출
+              </button>
+            </div>
+          </>
+        )}
       </main>
 
       {/* 🟩 푸터 */}
