@@ -317,28 +317,79 @@ function App() {
         </div>
 
         {/* 공통 파라미터 (groupCount/max/min) */}
-        <div className="mt-6 flex flex-col sm:flex-row justify-center gap-4">
-          <input
-            type="number"
-            placeholder="최대 그룹 수 (groupCount)"
-            value={groupCount}
-            onChange={(e) => setGroupCount(e.target.value)}
-            className="border p-2 rounded"
-          />
-          <input
-            type="number"
-            placeholder="maxFactor"
-            value={maxFactor}
-            onChange={(e) => setMaxFactor(e.target.value)}
-            className="border p-2 rounded"
-          />
-          <input
-            type="number"
-            placeholder="minFactor"
-            value={minFactor}
-            onChange={(e) => setMinFactor(e.target.value)}
-            className="border p-2 rounded"
-          />
+        <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4 max-w-4xl mx-auto">
+          {/* groupCount */}
+          <div className="flex flex-col">
+            <label
+              htmlFor="groupCount"
+              className="text-sm font-medium text-gray-800"
+              title="클러스터링으로 만들 팀의 최대 개수"
+            >
+              최대 그룹 수 (groupCount)
+            </label>
+            <input
+              id="groupCount"
+              type="number"
+              min={1}
+              placeholder="예: 3"
+              value={groupCount}
+              onChange={(e) => setGroupCount(e.target.value)}
+              className="border p-2 rounded mt-1"
+              aria-describedby="groupCountHelp"
+            />
+            <p id="groupCountHelp" className="mt-1 text-xs text-gray-500">
+              만들 팀의 <b>최대 개수</b>를 제한합니다. 비워두면 기본값을
+              사용합니다.
+            </p>
+          </div>
+
+          {/* maxFactor */}
+          <div className="flex flex-col">
+            <label
+              htmlFor="maxFactor"
+              className="text-sm font-medium text-gray-800"
+              title="특성값 스케일링/정규화 시 상한 기준"
+            >
+              maxFactor
+            </label>
+            <input
+              id="maxFactor"
+              type="number"
+              step="any"
+              placeholder="예: 5"
+              value={maxFactor}
+              onChange={(e) => setMaxFactor(e.target.value)}
+              className="border p-2 rounded mt-1"
+              aria-describedby="maxFactorHelp"
+            />
+            <p id="maxFactorHelp" className="mt-1 text-xs text-gray-500">
+              특성 값의 <b>상한 기준</b>으로 사용됩니다. 예: 5
+            </p>
+          </div>
+
+          {/* minFactor */}
+          <div className="flex flex-col">
+            <label
+              htmlFor="minFactor"
+              className="text-sm font-medium text-gray-800"
+              title="특성값 스케일링/정규화 시 하한 기준"
+            >
+              minFactor
+            </label>
+            <input
+              id="minFactor"
+              type="number"
+              step="any"
+              placeholder="예: 2"
+              value={minFactor}
+              onChange={(e) => setMinFactor(e.target.value)}
+              className="border p-2 rounded mt-1"
+              aria-describedby="minFactorHelp"
+            />
+            <p id="minFactorHelp" className="mt-1 text-xs text-gray-500">
+              특성 값의 <b>하한 기준</b>으로 사용됩니다. 예: 2
+            </p>
+          </div>
         </div>
 
         {/* ✅ CSV 업로드 모드 UI */}
