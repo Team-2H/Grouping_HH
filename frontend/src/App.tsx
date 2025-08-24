@@ -234,14 +234,14 @@ function App() {
         <div className="mx-auto max-w-6xl px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="h-8 w-8 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center font-bold">
-              G
+              T
             </div>
             <span className="text-lg font-semibold tracking-tight">
-              Grouping HH
+              Make Common Team
             </span>
           </div>
           <nav className="hidden sm:flex items-center gap-4 text-sm">
-            <span className="opacity-90">클러스터링 데모</span>
+            <span className="opacity-90">Make Common Team</span>
           </nav>
         </div>
       </header>
@@ -265,7 +265,7 @@ function App() {
         {/* Title */}
         <div className="mb-6">
           <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
-            팀 매칭 & 클러스터링
+            팀 메이킹 & 클러스터링
           </h1>
           <p className="text-sm text-slate-600 mt-1">
             CSV 업로드 또는 수동 입력으로 데이터를 보내 클러스터 결과를
