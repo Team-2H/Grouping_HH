@@ -38,18 +38,18 @@ function App() {
     { name: '회원5', values: ['', '', ''] },
   ]);
 
-  // ⬇⬇⬇ 추가: 업로드 모드 / 파일 상태 / CSV 엔드포인트
+  // ⬇⬇⬇ 업로드 모드 / 파일 상태 / CSV 엔드포인트
   const [mode, setMode] = useState<'manual' | 'csv'>('manual');
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const CSV_ENDPOINT = 'http://127.0.0.1:5000/groupingByCSV';
 
-  // (상단 state 구역 인근에 추가)
-  // ✨ 추가
+  // ✨ 가중치
   const [showWeight, setShowWeight] = useState(false); // 가중치 행 표시/숨김
   const [factorWeight, setFactorWeight] = useState<number[]>(
     Array(customColumns.length).fill(1) // 기본 가중치 1
   );
-  // ✨ 추가: 컬럼명을 서버로 보낼 키로 변환(영문 권장: age, height, ...)
+
+  // ✨ 컬럼명을 서버로 보낼 키로 변환
   const toKey = (label: string) =>
     label
       .trim()
@@ -57,18 +57,20 @@ function App() {
       .replace(/[\s\-]+/g, '_') // 공백/하이픈 → _
       .replace(/[^\w]/g, '') // 영문/숫자/언더스코어만
       .replace(/^(\d)/, '_$1'); // 숫자로 시작하면 앞에 _
-  // 고정 폭(px) — 네가 쓰는 w-48(≈192px) 기준
-  const NAME_COL_PX = 100; // "이름" 열
-  const ADD_COL_PX = 100; // "+ 열 추가" 열 (원하는 값으로 조정 가능)
+
+  // 고정 폭(px)
+  const NAME_COL_PX = 140; // "이름" 열 (조금 여유)
+  const ADD_COL_PX = 120; // "+ 열 추가" 열
 
   // 남은 폭을 중간 컬럼 개수로 균등 분배
-  const middleColWidth = `calc((100% - ${NAME_COL_PX + ADD_COL_PX}px) / ${customColumns.length || 1})`;
+  const middleColWidth = `calc((100% - ${NAME_COL_PX + ADD_COL_PX}px) / ${
+    customColumns.length || 1
+  })`;
 
   // ⏳ 로딩 오버레이
   const [isLoading, setIsLoading] = useState(false);
   const MIN_SPINNER_MS = 1000; // 최소 1초
 
-  // 어떤 비동기 작업이든 감싸면, 로딩 오버레이가 최소 1초 유지됨
   const withLoading = async (task: () => Promise<void>) => {
     setIsLoading(true);
     const start = Date.now();
@@ -77,11 +79,8 @@ function App() {
     } finally {
       const elapsed = Date.now() - start;
       const remain = MIN_SPINNER_MS - elapsed;
-      if (remain > 0) {
-        setTimeout(() => setIsLoading(false), remain);
-      } else {
-        setIsLoading(false);
-      }
+      if (remain > 0) setTimeout(() => setIsLoading(false), remain);
+      else setIsLoading(false);
     }
   };
 
@@ -130,31 +129,26 @@ function App() {
         values: [...user.values, ''],
       }))
     );
-    // ✨ 추가: 가중치도 동기화
     setFactorWeight((prev) => [...prev, 1]);
   };
-  // 컬럼 제거 메서드
+
   const removeColumn = (colIdx: number) => {
-    // 1. 컬럼 배열에서 제거
     const newCols = customColumns.filter((_, idx) => idx !== colIdx);
     setCustomColumns(newCols);
 
-    // 2. 각 유저 데이터 values 배열에서도 같은 인덱스 제거
     const newUserData = userData.map((user) => ({
       ...user,
       values: user.values.filter((_, idx) => idx !== colIdx),
     }));
     setUserData(newUserData);
-    // ✨ 추가: 가중치도 동일 인덱스 제거
     setFactorWeight((prev) => prev.filter((_, idx) => idx !== colIdx));
   };
-  // 행 제거 메서드
+
   const removeUserRow = (rowIdx: number) => {
     const newUserData = userData.filter((_, idx) => idx !== rowIdx);
     setUserData(newUserData);
   };
 
-  // ...기존 handleButtonClick 바로 위/아래 어느 곳이나
   const handleCsvUpload = async () => {
     if (!csvFile) {
       alert('CSV 파일을 선택해 주세요.');
@@ -162,10 +156,7 @@ function App() {
     }
 
     const formData = new FormData();
-    // 백엔드가 기대하는 필드명에 맞춰 조정하세요 (보통 'file' or 'csv')
     formData.append('csvData', csvFile, csvFile.name);
-
-    // 숫자 파라미터도 함께 전송 (서버에서 사용한다면)
     if (groupCount) formData.append('groupCount', String(groupCount));
     if (maxFactor) formData.append('maxFactor', String(maxFactor));
     if (minFactor) formData.append('minFactor', String(minFactor));
@@ -174,7 +165,7 @@ function App() {
       await withLoading(async () => {
         const res = await fetch(CSV_ENDPOINT, {
           method: 'POST',
-          body: formData, // ❗️multipart/form-data: Content-Type 수동 지정 금지
+          body: formData,
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
@@ -187,26 +178,21 @@ function App() {
   };
 
   const handleButtonClick = async () => {
-    // 1) 컬럼명 → 키로 변환 (예: 'muscle mass' → 'muscle_mass')
     const keys = customColumns.map(toKey);
 
-    // 2) 가중치 객체 만들기 (name 제외)
-    //    요구사항: factorWeight는 배열이지만 서버에는 [{ key: weight, ... }] 형태로 보냄
     const factorWeightObj: Record<string, number> = {};
     keys.forEach((k, i) => {
       factorWeightObj[k] = Number(factorWeight[i] ?? 1);
     });
 
-    // 3) 유저 데이터 매핑 (각 컬럼 값을 위 keys로 매핑)
     const processedUserData = userData.map((user) => {
       const obj: Record<string, any> = { name: user.name };
       keys.forEach((k, i) => {
-        obj[k] = Number(user.values[i]); // 숫자 변환
+        obj[k] = Number(user.values[i]);
       });
       return obj;
     });
 
-    // 기본 payload
     const payload: Record<string, any> = {
       groupCount: Number(groupCount),
       maxFactor: Number(maxFactor),
@@ -214,20 +200,14 @@ function App() {
       userData: processedUserData,
     };
 
-    // ✨ 조건부 factorWeight 포함
     if (showWeight) {
       const factorWeightObj: Record<string, number> = {};
       keys.forEach(
         (k, i) => (factorWeightObj[k] = Number(factorWeight[i] ?? 1))
       );
-
-      // 전부 1이면 굳이 안 보냄 (원하면 이 조건을 제거해 항상 보내도 됨)
       const anyNotOne = Object.values(factorWeightObj).some((v) => v !== 1);
-      if (anyNotOne) {
-        payload.factorWeight = [factorWeightObj];
-      }
+      if (anyNotOne) payload.factorWeight = [factorWeightObj];
     }
-    // showWeight === false 인 경우는 factorWeight를 아예 안 넣음
 
     try {
       await withLoading(async () => {
@@ -237,7 +217,6 @@ function App() {
           body: JSON.stringify(payload),
         });
         const data = await res.json();
-        // 기존: setMessage(data.labels);
         setMessage(normalizeLabels(data.labels));
       });
     } catch (e) {
@@ -245,221 +224,247 @@ function App() {
     }
   };
 
+  // 파일명 표시용 헬퍼
+  const fileLabel = csvFile ? csvFile.name : '선택된 파일이 없습니다';
+
   return (
-    <div className="flex flex-col min-h-screen font-sans">
+    <div className="min-h-screen bg-slate-50 text-slate-800">
+      {/* Top Bar */}
+      <header className="sticky top-0 z-40 border-b border-slate-200 bg-gradient-to-r from-indigo-600 via-indigo-500 to-sky-500 text-white">
+        <div className="mx-auto max-w-6xl px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="h-8 w-8 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center font-bold">
+              G
+            </div>
+            <span className="text-lg font-semibold tracking-tight">
+              Grouping HH
+            </span>
+          </div>
+          <nav className="hidden sm:flex items-center gap-4 text-sm">
+            <span className="opacity-90">클러스터링 데모</span>
+          </nav>
+        </div>
+      </header>
+
+      {/* LOADING OVERLAY */}
       {isLoading && (
         <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm">
           <div
-            className="w-16 h-16 rounded-full border-4 border-gray-300 border-t-blue-600 animate-spin"
+            className="w-16 h-16 rounded-full border-4 border-slate-300 border-t-indigo-600 animate-spin"
             aria-hidden="true"
           />
-          <p className="mt-4 text-gray-800 font-medium">분석 중…</p>
-          <p className="text-xs text-gray-500 mt-1">
+          <p className="mt-4 text-slate-800 font-medium">분석 중…</p>
+          <p className="text-xs text-slate-500 mt-1">
             잠시만 기다려주세요 (≈1초)
           </p>
         </div>
       )}
-      {/* 🟦 네비게이션 바 */}
-      <header className="bg-gray-800 text-white p-4">Nav Bar</header>
-      {/* 🟨 콘텐츠 영역 */}
-      <main className="flex-1 p-8">
-        {/* 🟦 서버 응답 카드 */}
-        {message.length > 0 && (
-          <div className="bg-white p-4 border rounded shadow mt-8">
-            <h3 className="font-semibold mb-4 text-lg">
-              서버 응답 (클러스터 결과)
-            </h3>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-              {message.map((team) => (
-                <div
-                  key={team.cluster}
-                  className="p-4 border rounded shadow bg-blue-50"
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="font-semibold">👥 팀 {team.cluster + 1}</p>
-                    <span className="text-xs text-gray-600">
-                      인원 {team.members.length}명
-                    </span>
-                  </div>
-                  <ul className="space-y-1">
-                    {team.members.map((name, i) => (
-                      <li
-                        key={`${team.cluster}-${i}`}
-                        className="flex items-center gap-2"
-                      >
-                        <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-500" />
-                        <span className="text-sm">{name}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-        {/* ✅ 모드 전환 토글 */}
-        <div className="mt-4 flex items-center gap-2">
+      {/* Main */}
+      <main className="mx-auto max-w-6xl px-4 py-8">
+        {/* Title */}
+        <div className="mb-6">
+          <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
+            팀 매칭 & 클러스터링
+          </h1>
+          <p className="text-sm text-slate-600 mt-1">
+            CSV 업로드 또는 수동 입력으로 데이터를 보내 클러스터 결과를
+            확인하세요.
+          </p>
+        </div>
+
+        {/* MODE TABS */}
+        <div className="mb-6 inline-flex rounded-2xl bg-white p-1 shadow-sm ring-1 ring-slate-200">
           <button
             type="button"
             onClick={() => setMode('manual')}
-            className={`px-3 py-1 rounded border ${mode === 'manual' ? 'bg-blue-600 text-white' : 'bg-white'}`}
+            aria-pressed={mode === 'manual'}
+            className={`px-4 py-2 rounded-xl text-sm transition ${
+              mode === 'manual'
+                ? 'bg-indigo-600 text-white shadow'
+                : 'text-slate-700 hover:bg-slate-50'
+            }`}
           >
             수동 입력
           </button>
           <button
             type="button"
             onClick={() => setMode('csv')}
-            className={`px-3 py-1 rounded border ${mode === 'csv' ? 'bg-blue-600 text-white' : 'bg-white'}`}
+            aria-pressed={mode === 'csv'}
+            className={`px-4 py-2 rounded-xl text-sm transition ${
+              mode === 'csv'
+                ? 'bg-indigo-600 text-white shadow'
+                : 'text-slate-700 hover:bg-slate-50'
+            }`}
           >
             CSV 업로드
           </button>
         </div>
 
-        {/* 공통 파라미터 (groupCount/max/min) */}
-        <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4 max-w-4xl mx-auto">
-          {/* groupCount */}
-          <div className="flex flex-col">
-            <label
-              htmlFor="groupCount"
-              className="text-sm font-medium text-gray-800"
-              title="클러스터링으로 만들 팀의 최대 개수"
-            >
-              최대 그룹 수 (groupCount)
-            </label>
-            <input
-              id="groupCount"
-              type="number"
-              min={1}
-              placeholder="예: 3"
-              value={groupCount}
-              onChange={(e) => setGroupCount(e.target.value)}
-              className="border p-2 rounded mt-1"
-              aria-describedby="groupCountHelp"
-            />
-            <p id="groupCountHelp" className="mt-1 text-xs text-gray-500">
-              만들 팀의 <b>최대 개수</b>를 제한합니다. 비워두면 기본값을
-              사용합니다.
-            </p>
-          </div>
-
-          {/* maxFactor */}
-          <div className="flex flex-col">
-            <label
-              htmlFor="maxFactor"
-              className="text-sm font-medium text-gray-800"
-              title="특성값 스케일링/정규화 시 상한 기준"
-            >
-              maxFactor
-            </label>
-            <input
-              id="maxFactor"
-              type="number"
-              step="any"
-              placeholder="예: 5"
-              value={maxFactor}
-              onChange={(e) => setMaxFactor(e.target.value)}
-              className="border p-2 rounded mt-1"
-              aria-describedby="maxFactorHelp"
-            />
-            <p id="maxFactorHelp" className="mt-1 text-xs text-gray-500">
-              특성 값의 <b>상한 기준</b>으로 사용됩니다. 예: 5
-            </p>
-          </div>
-
-          {/* minFactor */}
-          <div className="flex flex-col">
-            <label
-              htmlFor="minFactor"
-              className="text-sm font-medium text-gray-800"
-              title="특성값 스케일링/정규화 시 하한 기준"
-            >
-              minFactor
-            </label>
-            <input
-              id="minFactor"
-              type="number"
-              step="any"
-              placeholder="예: 2"
-              value={minFactor}
-              onChange={(e) => setMinFactor(e.target.value)}
-              className="border p-2 rounded mt-1"
-              aria-describedby="minFactorHelp"
-            />
-            <p id="minFactorHelp" className="mt-1 text-xs text-gray-500">
-              특성 값의 <b>하한 기준</b>으로 사용됩니다. 예: 2
-            </p>
-          </div>
-        </div>
-
-        {/* ✅ CSV 업로드 모드 UI */}
-        {mode === 'csv' && (
-          <div className="mt-6 max-w-2xl mx-auto w-full">
-            <div className="border rounded p-4 bg-white">
-              <p className="text-sm text-gray-700 mb-2">
-                CSV 파일을 선택하세요. (예:{' '}
-                <code>name, column01, column02, ...</code>)
-              </p>
+        {/* PARAMS CARD */}
+        <section className="mb-6 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+          <h2 className="text-base font-semibold text-slate-900">
+            공통 파라미터
+          </h2>
+          <p className="text-xs text-slate-500 mb-4">
+            클러스터 개수와 스케일링 기준을 설정합니다.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* groupCount */}
+            <div className="flex flex-col">
+              <label
+                htmlFor="groupCount"
+                className="text-sm font-medium text-slate-800"
+                title="클러스터링으로 만들 팀의 최대 개수"
+              >
+                최대 그룹 수 (groupCount)
+              </label>
               <input
-                type="file"
-                accept=".csv"
-                onChange={(e) => setCsvFile(e.target.files?.[0] ?? null)}
-                className="block w-full"
+                id="groupCount"
+                type="number"
+                min={1}
+                placeholder="예: 3"
+                value={groupCount}
+                onChange={(e) => setGroupCount(e.target.value)}
+                className="mt-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                aria-describedby="groupCountHelp"
               />
-              <div className="mt-4 flex justify-end">
+              <p id="groupCountHelp" className="mt-1 text-xs text-slate-500">
+                만들 팀의 <b>최대 개수</b>를 제한합니다. 비워두면 기본값을
+                사용합니다.
+              </p>
+            </div>
+            {/* maxFactor */}
+            <div className="flex flex-col">
+              <label
+                htmlFor="maxFactor"
+                className="text-sm font-medium text-slate-800"
+                title="특성값 스케일링/정규화 시 상한 기준"
+              >
+                maxFactor
+              </label>
+              <input
+                id="maxFactor"
+                type="number"
+                step="any"
+                placeholder="예: 5"
+                value={maxFactor}
+                onChange={(e) => setMaxFactor(e.target.value)}
+                className="mt-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                aria-describedby="maxFactorHelp"
+              />
+              <p id="maxFactorHelp" className="mt-1 text-xs text-slate-500">
+                특성 값의 <b>상한 기준</b>으로 사용됩니다. 예: 5
+              </p>
+            </div>
+            {/* minFactor */}
+            <div className="flex flex-col">
+              <label
+                htmlFor="minFactor"
+                className="text-sm font-medium text-slate-800"
+                title="특성값 스케일링/정규화 시 하한 기준"
+              >
+                minFactor
+              </label>
+              <input
+                id="minFactor"
+                type="number"
+                step="any"
+                placeholder="예: 2"
+                value={minFactor}
+                onChange={(e) => setMinFactor(e.target.value)}
+                className="mt-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                aria-describedby="minFactorHelp"
+              />
+              <p id="minFactorHelp" className="mt-1 text-xs text-slate-500">
+                특성 값의 <b>하한 기준</b>으로 사용됩니다. 예: 2
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {/* CSV UPLOAD CARD */}
+        {mode === 'csv' && (
+          <section className="mb-8 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+            <h2 className="text-base font-semibold text-slate-900">
+              CSV 업로드
+            </h2>
+            <p className="text-xs text-slate-500 mb-4">
+              첫 행에 컬럼 이름을 포함하세요. 예:{' '}
+              <code>name, column01, column02, ...</code>
+            </p>
+
+            <div className="grid gap-4 md:grid-cols-[1fr_auto] items-end">
+              <div>
+                <label className="block text-sm font-medium text-slate-800 mb-1">
+                  CSV 파일
+                </label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="file"
+                    accept=".csv"
+                    onChange={(e) => setCsvFile(e.target.files?.[0] ?? null)}
+                    className="block w-full text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-3 file:py-2 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer"
+                  />
+                </div>
+                <p className="mt-1 text-xs text-slate-500">{fileLabel}</p>
+              </div>
+
+              <div className="flex justify-end">
                 <button
                   type="button"
                   onClick={handleCsvUpload}
-                  disabled={!csvFile}
-                  className={`px-4 py-2 rounded ${csvFile ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`}
+                  disabled={!csvFile || isLoading}
+                  className={`inline-flex items-center justify-center rounded-xl px-5 py-2.5 text-sm font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${
+                    !csvFile || isLoading
+                      ? 'bg-slate-200 text-slate-500 cursor-not-allowed'
+                      : 'bg-indigo-600 text-white hover:bg-indigo-700 focus-visible:ring-indigo-600'
+                  }`}
                 >
-                  CSV로 서버 호출
+                  업로드 & 분석
                 </button>
               </div>
             </div>
-          </div>
+          </section>
         )}
 
-        {/* 유저데이터 table */}
+        {/* MANUAL INPUT TABLE */}
         {mode === 'manual' && (
-          <>
-            <div className="mt-6 px-8 overflow-x-auto relative">
-              {/* ✨ 변경: 토글 시 숨김으로 바뀌면 가중치 전부 1로 초기화 */}
-              <div className="mb-2 flex justify-end">
-                <button
-                  onClick={() =>
-                    setShowWeight((prev) => {
-                      const next = !prev;
-                      if (!next) {
-                        // 숨김 상태로 전환될 때 가중치 전부 1로
-                        setFactorWeight(Array(customColumns.length).fill(1));
-                      }
-                      return next;
-                    })
-                  }
-                  className="px-3 py-1 border rounded hover:bg-gray-50"
-                  type="button"
-                  title="가중치 행 추가/제거"
-                >
-                  {showWeight ? '가중치 제거' : '가중치 추가'}
-                </button>
-              </div>
-              <table className="w-full table-auto border border-gray-300 text-sm border-separate border-spacing-0">
+          <section className="mb-8 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-base font-semibold text-slate-900">
+                데이터 입력
+              </h2>
+              <button
+                onClick={() =>
+                  setShowWeight((prev) => {
+                    const next = !prev;
+                    if (!next)
+                      setFactorWeight(Array(customColumns.length).fill(1));
+                    return next;
+                  })
+                }
+                className="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-sm hover:bg-slate-50"
+                type="button"
+                title="가중치 행 추가/제거"
+              >
+                {showWeight ? '가중치 제거' : '가중치 추가'}
+              </button>
+            </div>
+
+            <div className="overflow-x-auto rounded-xl border border-slate-200">
+              <table className="w-full table-auto text-sm border-separate border-spacing-0">
                 <colgroup>
-                  {/* 1) 이름 열: 고정 폭 */}
                   <col style={{ width: NAME_COL_PX }} />
-                  {/* 2) 중간 컬럼들: 남은 폭을 균등 분배 */}
                   {customColumns.map((_, i) => (
                     <col key={i} style={{ width: middleColWidth }} />
                   ))}
-                  {/* 3) "+ 열 추가" 열: 고정 폭 */}
                   <col style={{ width: ADD_COL_PX }} />
                 </colgroup>
-                <thead className="bg-gray-100 sticky top-0 z-20">
-                  <tr>
+                <thead className="bg-slate-50 sticky top-0 z-20">
+                  <tr className="text-slate-700">
                     <th
-                      // className="border px-2 py-1 sticky left-0 top-0 z-40 bg-gray-100 w-40 md:w-48"
-                      className="border px-2 py-1 sticky left-0 top-0 z-40 bg-gray-100"
+                      className="border-b border-slate-200 px-3 py-2 sticky left-0 top-0 z-40 bg-slate-50 text-left"
                       style={{ minWidth: '10rem' }}
                     >
                       이름
@@ -467,7 +472,7 @@ function App() {
                     {customColumns.map((col, colIdx) => (
                       <th
                         key={colIdx}
-                        className="border px-2 py-1 w-15 md:w-32"
+                        className="border-b border-slate-200 px-3 py-2"
                       >
                         <div className="flex items-center gap-2">
                           <input
@@ -475,11 +480,11 @@ function App() {
                             onChange={(e) =>
                               handleColumnNameChange(colIdx, e.target.value)
                             }
-                            className="flex-1 min-w-0 border rounded px-1 py-0.5 text-xs"
+                            className="flex-1 min-w-0 rounded-md border border-slate-300 px-2 py-1 text-xs shadow-sm focus:ring-2 focus:ring-indigo-500"
                           />
                           <button
                             onClick={() => removeColumn(colIdx)}
-                            className="shrink-0 text-red-500 hover:text-red-700 px-1"
+                            className="shrink-0 rounded-md px-2 py-1 text-red-600 hover:bg-red-50"
                             aria-label={`컬럼 ${colIdx + 1} 삭제`}
                             title="열 삭제"
                           >
@@ -488,24 +493,25 @@ function App() {
                         </div>
                       </th>
                     ))}
-                    <th className="border px-2 py-1 whitespace-nowrap">
+                    <th className="border-b border-slate-200 px-3 py-2 whitespace-nowrap text-left">
                       <button
                         onClick={addColumn}
-                        className="text-blue-600 hover:underline"
+                        className="text-indigo-600 hover:underline"
                       >
                         + 열 추가
                       </button>
                     </th>
                   </tr>
-                  {/* ✨ 추가: 가중치 행 (thead 바로 아래) */}
                   {showWeight && (
-                    <tr className="bg-yellow-50">
-                      {/* 이름 열에는 입력 없음(요구: name 안 받기) */}
-                      <th className="border px-2 py-1 sticky left-0 z-30 bg-yellow-50 text-left">
+                    <tr className="bg-amber-50 text-slate-700">
+                      <th className="border-b border-slate-200 px-3 py-2 sticky left-0 z-30 bg-amber-50 text-left">
                         가중치
                       </th>
                       {customColumns.map((_, colIdx) => (
-                        <th key={colIdx} className="border px-2 py-1">
+                        <th
+                          key={colIdx}
+                          className="border-b border-slate-200 px-3 py-2"
+                        >
                           <input
                             type="number"
                             step="0.1"
@@ -518,24 +524,27 @@ function App() {
                                 return copy;
                               });
                             }}
-                            className="w-full min-w-0 border rounded px-1 py-0.5 text-xs text-right"
+                            className="w-full min-w-0 rounded-md border border-amber-200 px-2 py-1 text-xs text-right shadow-sm focus:ring-2 focus:ring-amber-500"
                             placeholder="1"
                           />
                         </th>
                       ))}
-                      <th className="border px-2 py-1" />
+                      <th className="border-b border-slate-200 px-3 py-2" />
                     </tr>
                   )}
                 </thead>
 
                 <tbody>
                   {userData.map((user, rowIdx) => (
-                    <tr key={rowIdx} className="odd:bg-white even:bg-gray-50">
-                      <td className="border px-2 py-1 sticky left-0 z-10 bg-white">
+                    <tr
+                      key={rowIdx}
+                      className={rowIdx % 2 ? 'bg-white' : 'bg-slate-50/40'}
+                    >
+                      <td className="px-3 py-2 sticky left-0 z-10 bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/60 border-b border-slate-100">
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => removeUserRow(rowIdx)}
-                            className="shrink-0 text-red-500 hover:text-red-700 px-1"
+                            className="shrink-0 rounded-md px-2 py-1 text-red-600 hover:bg-red-50"
                             aria-label={`행 ${rowIdx + 1} 삭제`}
                             title="행 삭제"
                             type="button"
@@ -547,35 +556,35 @@ function App() {
                             onChange={(e) =>
                               handleNameChange(rowIdx, e.target.value)
                             }
-                            className="w-full border rounded px-1 py-0.5"
+                            className="w-full rounded-md border border-slate-300 px-2 py-1 text-sm shadow-sm focus:ring-2 focus:ring-indigo-500"
                           />
                         </div>
                       </td>
                       {user.values.map((val, colIdx) => (
                         <td
                           key={colIdx}
-                          className="border px-2 py-1 w-24 sm:w-28 md:w-32"
+                          className="px-3 py-2 border-b border-slate-100"
                         >
                           <input
                             value={val}
                             onChange={(e) =>
                               handleValueChange(rowIdx, colIdx, e.target.value)
                             }
-                            className="w-full min-w-0 border rounded px-1 py-0.5 text-xs"
+                            className="w-full min-w-0 rounded-md border border-slate-300 px-2 py-1 text-xs shadow-sm focus:ring-2 focus:ring-indigo-500"
                           />
                         </td>
                       ))}
-                      <td className="border px-2 py-1" />
+                      <td className="px-3 py-2 border-b border-slate-100" />
                     </tr>
                   ))}
                   <tr>
                     <td
                       colSpan={customColumns.length + 2}
-                      className="text-center py-2"
+                      className="text-center py-3"
                     >
                       <button
                         onClick={addUserRow}
-                        className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700"
+                        className="rounded-xl bg-emerald-600 px-4 py-2 text-white shadow hover:bg-emerald-700"
                       >
                         + 행 추가
                       </button>
@@ -585,21 +594,71 @@ function App() {
               </table>
             </div>
 
-            {/* 🔵 submit 버튼 */}
-            <div className="mt-12 mb-10 flex justify-center">
+            {/* submit 버튼 */}
+            <div className="mt-6 flex justify-center">
               <button
                 onClick={handleButtonClick}
-                className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                disabled={isLoading}
+                className={`inline-flex items-center justify-center rounded-xl px-6 py-2.5 text-sm font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${
+                  isLoading
+                    ? 'bg-slate-200 text-slate-500 cursor-not-allowed'
+                    : 'bg-indigo-600 text-white hover:bg-indigo-700 focus-visible:ring-indigo-600'
+                }`}
               >
                 서버 호출
               </button>
             </div>
-          </>
+          </section>
+        )}
+
+        {/* SERVER RESPONSE */}
+        {message.length > 0 && (
+          <section className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+            <h3 className="font-semibold mb-4 text-lg text-slate-900">
+              서버 응답 (클러스터 결과)
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {message.map((team) => (
+                <div
+                  key={team.cluster}
+                  className="p-4 rounded-xl ring-1 ring-slate-200 bg-gradient-to-br from-slate-50 to-white shadow-sm"
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="inline-flex items-center gap-2">
+                      <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-indigo-600 text-white text-xs font-semibold">
+                        {team.cluster + 1}
+                      </span>
+                      <p className="font-semibold text-slate-900">팀</p>
+                    </div>
+                    <span className="text-xs text-slate-600 inline-flex items-center gap-1 bg-slate-100 px-2 py-1 rounded-full">
+                      인원 {team.members.length}명
+                    </span>
+                  </div>
+                  <ul className="space-y-1">
+                    {team.members.map((name, i) => (
+                      <li
+                        key={`${team.cluster}-${i}`}
+                        className="flex items-center gap-2"
+                      >
+                        <span className="inline-block w-1.5 h-1.5 rounded-full bg-indigo-500" />
+                        <span className="text-sm text-slate-800">{name}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          </section>
         )}
       </main>
 
-      {/* 🟩 푸터 */}
-      <footer className="bg-gray-200 p-4 text-center">Footer</footer>
+      {/* Footer */}
+      <footer className="mt-10 border-t border-slate-200 bg-white/60">
+        <div className="mx-auto max-w-6xl px-4 py-4 text-center text-xs text-slate-500">
+          © {new Date().getFullYear()} Grouping HH · Built with React +
+          Tailwind
+        </div>
+      </footer>
     </div>
   );
 }
