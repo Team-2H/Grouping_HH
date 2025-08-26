@@ -46,6 +46,8 @@ def package_docker_image():
             if stream_msg and isinstance(stream_msg, str):
                 print(stream_msg.strip())
 
+    os.system("docker tag groupingproject:latest 475698774641.dkr.ecr.ap-northeast-2.amazonaws.com/project/grouping:latest")
+    os.system("docker push 475698774641.dkr.ecr.ap-northeast-2.amazonaws.com/project/grouping:latest")
     print("이미지 빌드 완료:", image.tags)
 
 # 패키징 폴더 삭제

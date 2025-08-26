@@ -1,24 +1,25 @@
 import json
 from app import groupingLogic
 from app.validationCheck import ValidationError, ClusteringValidator
-from multipart import MultipartParser
+from requests_toolbelt.multipart.decoder import MultipartDecoder
 import base64
-import tempfile
+import io
+
 
 
 def lambda_handler(event, context):
     # API Gateway에서 오는 이벤트 파싱
     # 이 방식은 AWS HTTP Api 방식
-    requestContext = event['requestContext']
-    http = requestContext['http']
-    http_method = http['method']
-    path = http['path']
+    # requestContext = event['requestContext']
+    # http = requestContext['http']
+    # http_method = http['method']
+    # path = http['path']
 
     # 이 방식은 AWS Rest API 방식
-    # http_method = event['httpMethod']
-    # path = event['path']
+    http_method = event['httpMethod']
+    path = event['path']
     
-    if path == '/prod/grouping' and http_method == 'POST':
+    if path == '/grouping' and http_method == 'POST':
         try:
             body = event.get('body', '{}')
 
@@ -57,7 +58,10 @@ def lambda_handler(event, context):
 
             return {
                 'statusCode': 200,
-                'headers': {'Content-Type': 'application/json'},
+                'headers': {
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                },
                 'body': json.dumps(result)
             }
         
@@ -67,7 +71,10 @@ def lambda_handler(event, context):
             print(f'e.messages : {e.messages}')
             return {
                 'statusCode': e.status_code,
-                'headers': {'Content-Type': 'application/json'},
+                'headers': {
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                },
                 'body': json.dumps({'errors': e.messages})
             }
         except Exception as e:
@@ -75,101 +82,88 @@ def lambda_handler(event, context):
             print(f'e.messages : {str(e)}')
             return {
                 'statusCode': 500,
-                'headers': {'Content-Type': 'application/json'},
+                'headers': {
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                },
                 'body': json.dumps({'error': str(e)})
             }
 
 
-    elif path == '/prod/groupingByCSV' and http_method == 'POST':
+    elif path == '/groupingByCSV' and http_method == 'POST':
         try:
             # Content-Type 확인
             headers = event.get('headers', {})
-            content_type = headers.get('Content-Type', '')
+            content_type = headers.get('content-type', '')
             if 'multipart/form-data' not in content_type:
                 raise ValidationError({'error': "multipart/form-data로 전송되어야 합니다"})
             
             body = event.get('body', '')
             if event.get('isBase64Encoded', False):
                 body = base64.b64decode(body)
-            
-            # 파일 데이터 추출 (간단한 예시)
-            boundary = content_type.split('boundary=')[1]
-            parser = MultipartParser(body, boundary)
-            parts = parser.parts  # type: ignore
+            else:
+                body = body.encode("utf-8")
+
+            # 파일 데이터 추출
+            parser = MultipartDecoder(body, content_type)
 
             settingData = {}
             csvDataFile = None
+            csvDataFileName = None
 
-            for part in parts:
-                name = part.headers[b"Content-Disposition"].decode()
-                name_val = name.split("name=")[-1].split(";")[0].strip('"')
+            for part in parser.parts:
+                # 각 part의 헤더 확인
+                partHeaders = part.headers
+                disposition = partHeaders[b'Content-Disposition'].decode()  # type: ignore
+                
+                # Content-Disposition에서 name, filename 추출
+                name = None
+                filename = None
+                if 'name=' in disposition:
+                    # name="field_name" 추출
+                    name = disposition.split('name="')[1].split('"')[0]
+                if 'filename=' in disposition:
+                    # filename="file_name" 추출
+                    filename = disposition.split('filename="')[1].split('"')[0]
+                
+                if filename:  # 파일이면
+                    csvDataFile = io.BytesIO(part.content)
+                    csvDataFileName = filename
+                else:  # 일반 필드이면
+                    settingData[name] = part.content.decode() # 텍스트로 디코딩
+            
+            if csvDataFileName:
+                if not str(csvDataFileName).lower().endswith(".csv"):
+                    raise ValidationError({'error': 'CSV 파일이 아닙니다'})
+            else:
+                raise ValidationError({'error': '파일 이름이 없습니다'})
 
-                if name_val in ("groupCount", "maxFactor", "minFactor"):
-                    # 설정값 받아옴
-                    settingData[name_val] = part.content.decode()
-                elif name_val == "csvData":
-                    # 파일 받아옴
-                    if part.filename:  # 파일
-                        if part.filename == '':
-                            raise ValidationError({'error': '파일 이름이 없습니다'})
-                        if not str(part.filename).lower().endswith(".csv"):
-                            raise ValidationError({'error': 'CSV 파일이 아닙니다'})
-
-                        # --- 파일 처리: 가능한 스트림을 재사용, 없다면 스풀(메모리->디스크)로 만들기 ---
-                        fileobj = None
-
-                        # 1) part가 이미 file-like 객체 제공하는 경우 (일부 파서가 제공)
-                        if hasattr(part, "file") and getattr(part, "file") is not None:
-                            fileobj = part.file.stream
-                            fileobj.seek(0)
-                        elif hasattr(part, "stream") and getattr(part, "stream") is not None:
-                            fileobj = part.stream
-                            fileobj.seek(0)
-
-                        # 2) 파서가 .content (bytes)만 제공하면 BytesIO 또는 SpooledTemporaryFile 사용
-                        else:
-                            # 메모리에 모두 올려도 괜찮은 작은 파일이면 BytesIO가 간편
-                            # 대용량을 대비하려면 SpooledTemporaryFile을 사용 (threshold 지나면 디스크로 스풀됨)
-                            spooled = tempfile.SpooledTemporaryFile(max_size=10 * 1024 * 1024)  # 10MB 임계값
-                            # part.content 는 bytes 라고 가정
-                            spooled.write(part.content)
-                            spooled.seek(0)
-                            fileobj = spooled
-
-                        # 이제 fileobj는 읽을 수 있는 바이너리 파일 객체
-                        csvDataFile = fileobj
-                    else:
-                        raise ValidationError({'error': "파일이 들어오지 않았습니다"})
-                else:
-                    raise ValidationError({'error': f"허용하지 않는 변수명 입니다. 변수명 : {name_val}"})
-
-
-            groupCount = settingData['groupCount']
-            maxFactor = settingData['maxFactor']
-            minFactor = settingData['minFactor']
+            groupCount = int(settingData['groupCount']  if 'groupCount' in settingData else 0)
+            maxFactor  = int(settingData['maxFactor']   if 'maxFactor'  in settingData else 0)
+            minFactor  = int(settingData['minFactor']   if 'minFactor'  in settingData else 0)
 
             # validation 체크
             validator = ClusteringValidator(None, groupCount, maxFactor, minFactor)
             validator.validateCSV(csvDataFile)
 
             userData = validator.raw_data
-            groupCount = int(groupCount or 0)
-            maxFactor = int(maxFactor or 0)
-            minFactor = int(minFactor or 0)
             factorWeight = validator.factorWeight
-
+            
             # 클러스터링 로직 연결
             clustered_result, centroids = groupingLogic.constrained_kmeans_with_names(
                 userData, groupCount, maxFactor, minFactor, factorWeight
             )
-
+            
             result = {
                 "labels": clustered_result
                 # , "centroids": centroids.tolist()
             }
             return {
                 'statusCode': 200,
-                'headers': {'Content-Type': 'application/json'},
+                'headers': {
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                },
                 'body': json.dumps(result)
             }
         
@@ -179,7 +173,10 @@ def lambda_handler(event, context):
             print(f'e.messages : {e.messages}')
             return {
                 'statusCode': e.status_code,
-                'headers': {'Content-Type': 'application/json'},
+                'headers': {
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                },
                 'body': json.dumps({'errors': e.messages})
             }
         except Exception as e:
@@ -187,7 +184,10 @@ def lambda_handler(event, context):
             print(f'e.messages : {str(e)}')
             return {
                 'statusCode': 500,
-                'headers': {'Content-Type': 'application/json'},
+                'headers': {
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                },
                 'body': json.dumps({'error': str(e)})
             }
     
